@@ -109,9 +109,14 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   background: var(--bg); border-bottom: 1px solid var(--border); }
 #fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
 #fmt select { padding: 3px 4px; }
+#fmt #fImage { width: 98px; }
+#fmt #fDiagram { width: 116px; }
+#fmt #fMath { width: 104px; }
 #fmt #fHead { width: 84px; }                        /* 見出しの段階を選ぶだけなので、細くする */
 /* 行の区切り（1行目＝標準の書式、2行目＝目次・データ・編集、3行目＝拡張の挿入）。高さ0で、行を強制的に改める */
 #fmt .frowbreak { flex: 0 0 100%; height: 0; margin: -6px 0 0; }
+#fmt { container-type: inline-size; }
+@container (min-width: 1000px) { #fmt .frowbreak { display: none; } }   /* 広い編集欄（編集のみの表示など）では、行を強制せず、入るだけ並べる */
 #fmt #fSnip { min-width: 0; padding: 3px 3px; }      /* 3画面の編集バーに、段を増やさず収めるため、細くする */
 /* ボタンは、用途ごとのグループにまとめ、グループの名前を上に小さく出す。折り返すときは、グループ単位（途中では割れない） */
 #fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; max-width: 100%; }
@@ -479,6 +484,19 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button data-f="link" title="リンク (Ctrl+K)">🔗</button>
             </span>
           </span>
+          <span class="fgroup" role="group" aria-label="編集">
+            <span class="glabel">編集</span>
+            <span class="gbtns">
+              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
+              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
+              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
+              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
+              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
+              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
+              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
+            </span>
+          </span>
+          <span class="frowbreak" aria-hidden="true"></span>
           <span class="fgroup" role="group" aria-label="リスト・ブロック">
             <span class="glabel">リスト・ブロック</span>
             <span class="gbtns">
@@ -492,24 +510,11 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)" aria-label="表">▦</button>
             </span>
           </span>
-          <span class="frowbreak" aria-hidden="true"></span>
           <span class="fgroup" role="group" aria-label="目次・データ">
             <span class="glabel">目次・データ</span>
             <span class="gbtns">
               <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
               <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
-            </span>
-          </span>
-          <span class="fgroup" role="group" aria-label="編集">
-            <span class="glabel">編集</span>
-            <span class="gbtns">
-              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
-              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
-              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
-              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
-              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
-              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
-              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
             </span>
           </span>
           <span class="frowbreak" aria-hidden="true"></span>
