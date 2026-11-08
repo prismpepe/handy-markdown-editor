@@ -8,6 +8,8 @@ import time
 from ctypes import wintypes
 
 CF_UNICODETEXT = 13
+CF_DIB = 8
+CF_DIBV5 = 17
 GMEM_MOVEABLE = 0x0002
 
 user32 = ctypes.windll.user32
@@ -24,6 +26,11 @@ kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
 kernel32.GlobalLock.restype = ctypes.c_void_p
 kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
 kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
+kernel32.GlobalSize.argtypes = [ctypes.c_void_p]
+kernel32.GlobalSize.restype = ctypes.c_size_t
+user32.IsClipboardFormatAvailable.argtypes = [wintypes.UINT]
+user32.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
+user32.RegisterClipboardFormatW.restype = wintypes.UINT
 
 
 def _open(retries=10):
@@ -50,6 +57,44 @@ def get_text():
             return ctypes.wstring_at(ptr)
         finally:
             kernel32.GlobalUnlock(handle)
+    finally:
+        user32.CloseClipboard()
+
+
+def _read_bytes(fmt):
+    """（クリップボードを開いたまま）指定した形式の中身を、バイト列で返す。無ければ None。"""
+    if not user32.IsClipboardFormatAvailable(fmt):
+        return None
+    handle = user32.GetClipboardData(fmt)
+    if not handle:
+        return None
+    size = kernel32.GlobalSize(handle)
+    ptr = kernel32.GlobalLock(handle)
+    if not ptr or not size:
+        return None
+    try:
+        return ctypes.string_at(ptr, size)
+    finally:
+        kernel32.GlobalUnlock(handle)
+
+
+def get_image_png():
+    """クリップボードの画像を、PNG のバイト列で返す。画像が無い・変換できないときは None。
+    登録された形式 "PNG"（ブラウザー・切り取りツールなど）があればそのまま、無ければ DIB から変換する。"""
+    import pasteimg
+    if not _open():
+        return None
+    try:
+        png = _read_bytes(user32.RegisterClipboardFormatW("PNG"))
+        if png and pasteimg.is_png(png):
+            return png
+        for fmt in (CF_DIB, CF_DIBV5):           # 標準の DIB を先に（DIBV5 は、Windows が変換して作ることが多く、並びが違うことがある）
+            dib = _read_bytes(fmt)
+            if dib:
+                png = pasteimg.dib_to_png(dib)
+                if png:
+                    return png
+        return None
     finally:
         user32.CloseClipboard()
 

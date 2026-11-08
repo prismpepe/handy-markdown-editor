@@ -31,17 +31,20 @@ import highlight
 import imgembed
 import lint
 import mathtex
+import pasteimg
 import tabular
+import tableedit
 import templating
 import toc
 import uiprefs
 import filemodel
 import printing
 import shellreg
+import snippets
 from sanitize import sanitize
 
 APP_NAME = "Handy Markdown Editor"
-APP_VERSION = "1.17.1"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.18.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -531,6 +534,72 @@ class Api:
             return {"error": f"開けません: {e}"}
         return {"error": None, "folder": folder}
 
+    # --- 表の編集支援（整形・列と行の操作・Tab での移動。tableedit.py）---------------
+    @staticmethod
+    def _table_args(text, line, ch):
+        ok = isinstance(text, str) and len(text) <= 2_000_000 and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in (line, ch))
+        return ok
+
+    def table_info(self, text, line, ch):
+        if not self._table_args(text, line, ch):
+            return {"in_table": False}
+        return tableedit.info(text, line, ch)
+
+    def table_edit(self, text, line, ch, op):
+        if not self._table_args(text, line, ch):
+            return {"ok": False, "message": "表を読めません"}
+        return tableedit.edit(text, line, ch, op)
+
+    def table_tab(self, text, line, ch, forward):
+        if not self._table_args(text, line, ch):
+            return {"ok": False, "not_table": True}
+        return tableedit.tab(text, line, ch, bool(forward))
+
+    # --- スニペット（文中に挿入する定型文。snippets.py）-------------------------
+    def snippet_folder(self):
+        """自分のスニペット（.md）を置く場所。"""
+        return os.path.join(data_dir(), "snippets")
+
+    def list_snippets(self):
+        items = snippets.builtin_snippets() + snippets.user_snippets(self.snippet_folder())
+        return {"folder": self.snippet_folder(), "items": items}
+
+    def get_snippet(self, sid):
+        """スニペットの本文と、利用者に聞く欄。選べるのは、組み込みと、置き場の中のファイルだけ（任意のパスは読ませない）。"""
+        try:
+            kind, _, ref = str(sid).partition(":")
+            if kind == "builtin" and ref in snippets.BUILTIN:
+                text, name = snippets.BUILTIN[ref], ref
+            elif kind == "file" and templating.inside(self.snippet_folder(), ref):
+                if os.path.getsize(ref) > snippets.MAX_BYTES:
+                    return {"error": "大きすぎるファイルは、スニペットにできません（100KB まで）"}
+                doc = filemodel.read_document(ref)
+                if doc.get("readonly"):
+                    return {"error": "文字コードを判定できないファイルは、スニペットにできません"}
+                text, name = doc["text"], os.path.splitext(os.path.basename(ref))[0]
+            else:
+                return {"error": "このスニペットは使えません"}
+        except OSError as e:
+            return {"error": f"読み込めません: {e}"}
+        return {"error": None, "name": name, "text": text, "fields": snippets.fields(text)}
+
+    def expand_snippet(self, text, values, selection):
+        """欄を値に置き換えた挿入文字と、その中のカーソルの位置。選んでいる文字は {{選択}} に入る。"""
+        if not isinstance(text, str) or not isinstance(selection, str):
+            return {"text": "", "cursor": None}
+        vals = {str(k): v for k, v in (values or {}).items()} if isinstance(values, dict) else {}
+        return snippets.expand(text[:snippets.MAX_BYTES], vals, selection)
+
+    def open_snippet_folder(self):
+        """自分のスニペットの場所を、エクスプローラーで開く（無ければ作る）。"""
+        folder = self.snippet_folder()
+        try:
+            os.makedirs(folder, exist_ok=True)
+            os.startfile(folder)
+        except OSError as e:
+            return {"error": f"開けません: {e}"}
+        return {"error": None, "folder": folder}
+
     def check_changed(self, path):
         """読み込んだあとにファイルが変わったかを確かめるための、現在のスタンプ。"""
         try:
@@ -805,6 +874,24 @@ class Api:
 
     def clipboard_set(self, text):
         return clipboard.set_text(text)
+
+    def paste_clipboard_image(self, doc_path):
+        """クリップボードの画像を、文書のあるフォルダーの images に保存し、文書から見た相対パスを返す。
+        文書がまだ保存されていないときは、保存先が決まらないので、保存しない（unsaved）。"""
+        png = clipboard.get_image_png()
+        if not png:
+            return {"ok": False, "kind": "none"}
+        if len(png) > pasteimg.MAX_PNG:
+            return {"ok": False, "kind": "error", "message": "画像が大きすぎます（40MB までです）"}
+        if not doc_path:
+            return {"ok": True, "unsaved": True}
+        if not isinstance(doc_path, str):
+            return {"ok": False, "kind": "error", "message": "文書の場所が分かりません"}
+        try:
+            saved = pasteimg.save_png(doc_path, png)
+        except (OSError, ValueError) as e:
+            return {"ok": False, "kind": "error", "message": "画像を保存できませんでした: " + str(e)}
+        return {"ok": True, "rel": saved["rel"], "bytes": len(png)}
 
     # --- ウィンドウ ---------------------------------------------------------
     def set_title(self, title):

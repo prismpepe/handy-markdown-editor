@@ -99,6 +99,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   background: var(--bg); border-bottom: 1px solid var(--border); }
 #fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
 #fmt select { padding: 3px 4px; }
+#fmt #fSnip { min-width: 0; padding: 3px 3px; }      /* 3画面の編集バーに、段を増やさず収めるため、細くする */
 /* ボタンは、用途ごとのグループにまとめ、グループの名前を上に小さく出す。折り返すときは、グループ単位（途中では割れない） */
 #fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; }
 #fmt .glabel { font-size: 10px; line-height: 1; color: var(--muted); padding-left: 2px; white-space: nowrap; user-select: none; }
@@ -116,6 +117,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #ctx { position: fixed; z-index: 20; min-width: 220px; padding: 4px; background: var(--bg);
   border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.28); }
 #ctx[hidden] { display: none; }
+#ctx { max-height: calc(100vh - 8px); overflow-y: auto; }
 #ctx .citem { display: flex; justify-content: space-between; gap: 24px; width: 100%; border: 0;
   background: none; border-radius: 4px; padding: 5px 10px; text-align: left; }
 #ctx .citem:hover:not(:disabled) { background: var(--sel); }
@@ -246,6 +248,9 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #rList .rprev { grid-column: 1 / -1; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #rList .rwarn { grid-column: 1 / -1; color: var(--warn); font-size: 12px; }
 #rList .racts { display: flex; gap: 6px; align-items: center; grid-row: 1 / 3; grid-column: 2; }
+.snipfields { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 4px; min-width: 320px; }
+.snipfields .sniprow { display: grid; grid-template-columns: 7em 1fr; gap: 8px; align-items: center; }
+.snipfields input { font: inherit; padding: 3px 6px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
 /* 検査（lint）: 状態表示欄のボタン、編集欄の下の一覧、行番号の横の印、ルールのダイアログ */
 #lintBtn { font-size: 12px; padding: 0 8px; border: 1px solid transparent; background: none; color: var(--fg); cursor: pointer; border-radius: 4px; }
 #lintBtn:hover { border-color: var(--accent); }
@@ -477,11 +482,12 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
             </span>
           </span>
-          <span class="fgroup" role="group" aria-label="チャート・数式">
-            <span class="glabel">チャート・数式</span>
+          <span class="fgroup" role="group" aria-label="チャート・数式・定型文">
+            <span class="glabel">チャート・数式・定型文</span>
             <span class="gbtns">
               <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
               <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
+              <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩</button>
             </span>
           </span>
           <span class="fgroup" role="group" aria-label="編集">
@@ -672,7 +678,10 @@ function ask(title, text, buttons, extra) {
     const done = i => { $('veil').classList.remove('show'); document.removeEventListener('keydown', onKey, true); resolve(i); };
     function onKey(e) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(buttons.length - 1); }
-      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(buttons.findIndex(b => b.primary)); }
+      else if (e.key === 'Enter') {
+        if (e.target.closest && e.target.closest('#dExtra input')) return;     // 入力欄の Enter は、欄の側で扱う（次の欄へ移る・挿入する）
+        e.preventDefault(); e.stopPropagation(); done(buttons.findIndex(b => b.primary));
+      }
     }
     buttons.forEach((b, i) => {
       const el = document.createElement('button'); el.textContent = b.label;
@@ -1180,7 +1189,7 @@ document.addEventListener('keydown', e => {
 function applyDocMeta() {
   $('selEnc').value = doc.encoding; $('selNl').value = doc.newline;
   cm.setOption('readOnly', doc.readonly ? true : false);
-  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace], #fToc, #fTable').forEach(el => { el.disabled = doc.readonly; });
+  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace], #fToc, #fTable, #fSnip').forEach(el => { el.disabled = doc.readonly; });
   if (typeof finder !== 'undefined' && finder) { $('rrow').hidden = $('rrow').hidden || doc.readonly; }
   updateEditButtons();
 }
@@ -1716,6 +1725,54 @@ $('mdlg').addEventListener('keydown', e => {                    // 入力欄で 
 });
 window.addEventListener('focus', () => { if (tmplDlgOpen()) fillTemplateList(tmpl && tmpl.id); });   // 場所へ .md を置いて戻ったら、一覧を更新する
 
+// ============================================================ 表の編集支援（整形・列と行の操作・Tab でセルを移る）
+// 表の本体は Python（tableedit.py）。表の中で右クリックすると、メニューの先頭に「表の編集」が出る。
+// Tab / Shift+Tab は、表の中では次／前のセルへ移る（最後のセルで Tab を押すと、行を足す）。表の外では、これまでどおり。
+let tableQueue = Promise.resolve();                    // Tab を続けて押しても、順番に処理する（位置を読み違えないため）
+const tableRowHere = c => !doc.readonly && c.getLine(c.getCursor().line).includes('|');
+function applyTableResult(r) {
+  if (r.lines) {
+    const last = r.end - 1;
+    cm.replaceRange(r.lines.join('\n'), { line: r.start, ch: 0 }, { line: last, ch: cm.getLine(last).length });    // 1回の取り消しで戻る
+  }
+  cm.setCursor({ line: r.cursor[0], ch: r.cursor[1] }); cm.focus();
+}
+async function tableEdit(op) {
+  if (doc.readonly) return;
+  const c = cm.getCursor(), gen = cm.changeGeneration();
+  const r = await api.table_edit(cm.getValue(), c.line, c.ch, op);
+  if (gen !== cm.changeGeneration()) { status('操作の間に文書が変わったので、やめました。もう一度、操作してください', true, 5000); return; }
+  if (!r.ok) { status(r.message, true, 5000); return; }
+  applyTableResult(r);
+}
+function tableTab(forward) {
+  tableQueue = tableQueue.then(async () => {
+    const c = cm.getCursor(), gen = cm.changeGeneration();
+    const r = await api.table_tab(cm.getValue(), c.line, c.ch, forward);
+    if (gen !== cm.changeGeneration()) return;
+    if (r.not_table) { forward ? cm.replaceSelection('  ', 'end') : cm.indentSelection('subtract'); return; }   // 表でなければ、これまでどおり
+    if (!r.ok) { status(r.message, true, 5000); return; }
+    applyTableResult(r);
+  }).catch(() => {});
+  return undefined;
+}
+// 表の中の右クリックのとき、メニューの先頭に足す項目
+function tableMenuItems(info) {
+  const ro = doc.readonly, head = info.kind !== 'body';
+  const it = (label, op, disabled) => ({ label, disabled: ro || !!disabled, run: () => tableEdit(op) });
+  return [
+    { label: '— 表の編集 —', disabled: true, run() {} },
+    it('表を整形（列の幅をそろえる）', 'format'),
+    it('列を左に追加', 'add_col_left'), it('列を右に追加', 'add_col_right'),
+    it('列を削除', 'del_col', info.ncols <= 1),
+    it('列を左へ移動', 'move_col_left', info.col <= 0), it('列を右へ移動', 'move_col_right', info.col >= info.ncols - 1),
+    it('配置: 左寄せ', 'align_left'), it('配置: 中央', 'align_center'), it('配置: 右寄せ', 'align_right'), it('配置: 指定なし', 'align_none'),
+    it('行を上に追加', 'add_row_above', head), it('行を下に追加', 'add_row_below'),
+    it('行を削除', 'del_row', head),
+    '-',
+  ];
+}
+
 // ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
 const tableDlgOpen = () => !$('tveil').hidden;
 const TABLE_DEFAULT = { fmt: 'md', source: 'auto', delim: 'auto', header: true, align: 'auto', numbers: true, empty: 'null', fence: false, border: false };
@@ -1941,6 +1998,61 @@ async function restoreDraft(d) {
   }
 }
 
+// ============================================================ スニペット（文中に挿入する定型文）
+// 組み込みと、自分の .md（%APPDATA%\MarkdownEditor\snippets\）。欄（{{名前}}）があれば、入力を聞いてから、カーソルの位置へ挿入する。
+// {{選択}} は、選んでいる文字、{{カーソル}} は、挿入したあとのカーソルの位置。
+let snipItems = [];
+async function loadSnippets() {
+  try { snipItems = (await api.list_snippets()).items; } catch (e) { snipItems = []; }
+}
+// ボタンを押すと、ボタンの下に一覧のメニューを出す（編集バーに、場所を取る選択欄を足さないため）
+function openSnippetMenu() {
+  if (doc.readonly) return;
+  const run = id => () => insertSnippet(id);
+  const part = (label, kind) => {
+    const items = snipItems.filter(i => i.kind === kind);
+    return items.length ? [{ label: '— ' + label + ' —', disabled: true, run() {} }, ...items.map(i => ({ label: i.name, run: run(i.id) }))] : [];
+  };
+  const r = $('fSnip').getBoundingClientRect();
+  showCtx(r.left, r.bottom + 2, [...part('組み込み', 'builtin'), ...part('自分の定型文', 'user'), '-', { label: '定型文の場所を開く…', run: run(':open') }]);
+}
+async function insertSnippet(id) {
+  if (id === ':open') { const r = await api.open_snippet_folder(); if (r.error) status(r.error, true, 6000); return; }
+  const sn = await api.get_snippet(id);
+  if (sn.error) { status(sn.error, true, 6000); return; }
+  let values = {};
+  if (sn.fields.length) {
+    values = await askSnippetFields(sn);
+    if (values === null) return;                    // 取りやめ
+  }
+  const selection = cm.getSelection();
+  const r = await api.expand_snippet(sn.text, values, selection);
+  const from = cm.getCursor('from');
+  const startIdx = cm.indexFromPos(from);
+  cm.replaceSelection(r.text, 'end');
+  if (r.cursor !== null && r.cursor !== undefined) cm.setCursor(cm.posFromIndex(startIdx + r.cursor));
+  cm.focus();
+  status(`定型文「${sn.name}」を挿入しました`, false, 2500);
+}
+// 欄ごとの入力を聞く。Enter で挿入、Esc で取りやめ。取りやめなら null
+function askSnippetFields(sn) {
+  return new Promise(resolve => {
+    const box = document.createElement('div'); box.className = 'snipfields';
+    const inputs = sn.fields.map(f => {
+      const row = document.createElement('label'); row.className = 'sniprow';
+      const t = document.createElement('span'); t.textContent = f.name;
+      const i = document.createElement('input'); i.type = 'text'; i.value = f.default || ''; i.dataset.name = f.name; i.spellcheck = false;
+      row.append(t, i); box.appendChild(row); return i;
+    });
+    const done = v => { $('veil').classList.remove('show'); resolve(v); };
+    ask(`定型文「${sn.name}」`, '入れる内容を書いてください（空のままでもかまいません）。', [{ label: '挿入', primary: true }, { label: 'キャンセル' }], box)
+      .then(i => { resolve(i === 0 ? Object.fromEntries(inputs.map(x => [x.dataset.name, x.value])) : null); });
+    setTimeout(() => inputs[0].focus(), 0);
+    inputs.forEach((x, k) => x.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (k < inputs.length - 1) inputs[k + 1].focus(); else document.querySelector('#dBtns .primary').click(); }
+    }));
+  });
+}
 // ============================================================ 検査（lint）
 // 文書の検査は Python（lint.py）。数式と図の誤りは、描いた結果（プレビューの中の印）から集める。
 const lint = { gen: -1, rules: [], issues: [], dom: [], seq: 0, timer: null, domTimer: null, stale: false, skipped: false, error: '' };
@@ -2270,8 +2382,38 @@ async function doCopy(cut) {
 async function doPaste() {
   if (doc.readonly) return;
   const t = await api.clipboard_get();
-  if (!t) { status('クリップボードに貼り付けられる文字がありません', true, 3000); return; }
+  if (!t) {
+    if (await pasteImage()) return;                  // 文字が無ければ、画像（スクリーンショットなど）を試す
+    status('クリップボードに貼り付けられる文字・画像がありません', true, 3000); return;
+  }
   cm.replaceSelection(t.replace(/\r\n?/g, '\n'), 'end');
+}
+// クリップボードの画像を、文書のあるフォルダーの images に保存し、リンクを入れる。貼り付けたら true（画像が無いときは false）
+let pastingImage = false;
+async function pasteImage() {
+  if (doc.readonly || pastingImage) return false;
+  pastingImage = true;
+  try {
+    let r = await api.paste_clipboard_image(doc.path);
+    if (!r.ok) {
+      if (r.kind === 'error') { status(r.message, true, 6000); return true; }
+      return false;                                  // 画像が無い
+    }
+    if (r.unsaved) {                                 // 保存先（文書のフォルダー）が決まらない
+      const i = await ask('画像を貼り付けます', '文書がまだ保存されていないため、画像を置く場所が決まりません。\n画像は、文書のあるフォルダーの images フォルダーに、ファイルとして保存し、文書には短いリンクだけを入れます。\n\n先に文書を保存しますか？',
+        [{ label: '保存してから貼り付ける', primary: true }, { label: 'キャンセル' }]);
+      if (i !== 0 || !await saveAs()) return true;
+      r = await api.paste_clipboard_image(doc.path);
+      if (!r.ok) { status(r.kind === 'error' ? r.message : '画像が見つかりません（クリップボードが変わりました）', true, 6000); return true; }
+    }
+    const link = `![画像](${r.rel})`;
+    const from = cm.getCursor('from');
+    cm.replaceSelection(link, 'end');
+    cm.setSelection({ line: from.line, ch: from.ch + 2 }, { line: from.line, ch: from.ch + 4 });   // 「画像」を選んでおく（そのまま打ち替えて、説明を付けられる）
+    status(`画像を保存して貼り付けました: ${r.rel}（${Math.round(r.bytes / 1024).toLocaleString()} KB）`, false, 6000);
+    syncList(true);
+    return true;
+  } finally { pastingImage = false; }
 }
 function openFind(withReplace) {
   if (prefs.view === 'preview') setView('split');     // 検索は編集欄に対して働く
@@ -2307,10 +2449,17 @@ function showCtx(x, y, items) {
   m.style.left = Math.max(4, Math.min(x, innerWidth - m.offsetWidth - 4)) + 'px';
   m.style.top = Math.max(4, Math.min(y, innerHeight - m.offsetHeight - 4)) + 'px';
 }
-function editorMenu(e) {
+async function editorMenu(e) {
   e.preventDefault();
+  const x = e.clientX, y = e.clientY;
+  let tinfo = { in_table: false };
+  if (!doc.readonly) {
+    const pos = cm.somethingSelected() ? cm.getCursor() : cm.coordsChar({ left: x, top: y }, 'window');
+    if (!cm.somethingSelected()) cm.setCursor(pos);                      // 右クリックした場所へカーソルを置く（表の操作は、カーソルの位置で行う）
+    if (cm.getLine(pos.line).includes('|')) { try { tinfo = await api.table_info(cm.getValue(), pos.line, pos.ch); } catch (err) { /* 表でないものとして出す */ } }
+  }
   const sel = !!cm.getSelection(), h = cm.historySize(), ro = doc.readonly;
-  showCtx(e.clientX, e.clientY, [
+  showCtx(x, y, [...(tinfo.in_table ? tableMenuItems(tinfo) : []),
     { label: '元に戻す', key: 'Ctrl+Z', disabled: ro || !h.undo, run: () => { cm.undo(); cm.focus(); } },
     { label: 'やり直し', key: 'Ctrl+Y', disabled: ro || !h.redo, run: () => { cm.redo(); cm.focus(); } },
     '-',
@@ -2366,8 +2515,8 @@ document.addEventListener('DOMContentLoaded', () => {
     indentUnit: 2, tabSize: 4, indentWithTabs: false, placeholder: 'ここに Markdown を書きます',
     extraKeys: {
       Enter: 'newlineAndIndentContinueMarkdownList',
-      Tab: c => c.somethingSelected() ? c.indentSelection('add') : c.replaceSelection('  ', 'end'),
-      'Shift-Tab': c => c.indentSelection('subtract'),
+      Tab: c => { if (c.somethingSelected()) return c.indentSelection('add'); if (tableRowHere(c)) return tableTab(true); c.replaceSelection('  ', 'end'); },
+      'Shift-Tab': c => { if (!c.somethingSelected() && tableRowHere(c)) return tableTab(false); c.indentSelection('subtract'); },
       'Ctrl-B': () => wrapSelection('**'), 'Ctrl-I': () => wrapSelection('*'),
       'Ctrl-E': () => wrapSelection('`'), 'Ctrl-K': () => makeLink(),
       'Ctrl-G': 'jumpToLine',
@@ -2377,6 +2526,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ファイルのドロップは編集欄に中身を挿入させない（開くのは handleDrop。テキストのドラッグは従来どおり）
   const isFileDrag = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
   cm.on('drop', (c, e) => { if (isFileDrag(e)) e.codemirrorIgnore = true; });
+  // Ctrl+V: クリップボードに文字が無く、画像（スクリーンショットなど）だけがあるときは、画像として貼り付ける。
+  // Excel のセルのように、文字と画像の両方があるときは、これまでどおり文字を貼り付ける
+  cm.on('paste', (c, e) => {
+    const types = Array.from((e.clipboardData && e.clipboardData.types) || []);
+    const hasImage = types.includes('Files') || types.some(t => t.startsWith('image/'));
+    const hasText = types.includes('text/plain') || types.includes('text/html');
+    if (!hasImage || hasText || doc.readonly) return;
+    e.preventDefault(); e.codemirrorIgnore = true;
+    pasteImage();
+  });
   cm.on('dragover', (c, e) => { if (isFileDrag(e)) e.codemirrorIgnore = true; });
   cm.on('change', () => { followCursor = true; schedulePreview(); updateDirty(); scheduleCounters(); lintEdited(); });
   cm.on('gutterClick', (c, line, gutter) => { if (gutter === 'lint-gutter') lintFromGutter(line); });
@@ -2415,6 +2574,10 @@ window.addEventListener('pywebviewready', async () => {
   setView(prefs.view || 'triple');
   applyDocMeta(); updateDirty(); updateCounters(); updatePreview();
   initLint();
+  loadSnippets();
+  $('fSnip').addEventListener('mousedown', e => e.preventDefault());                // 編集欄から、選択を外さない
+  $('fSnip').onclick = openSnippetMenu;
+  window.addEventListener('focus', loadSnippets);                                      // 場所へ .md を置いて戻ったら、一覧を更新する
   if (cfg.error) showMsg(cfg.error);
   if (cfg.folder) await loadFolder(cfg.folder);
   if (cfg.file) await openPath(cfg.file);
