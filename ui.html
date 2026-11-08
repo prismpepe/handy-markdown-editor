@@ -105,13 +105,13 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #previewPane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #pscroll { flex: 1; overflow: auto; }
 #preview { padding: 16px 24px 64px; }
-#fmt { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 14px; padding: 5px 8px 6px;
+#fmt { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 10px; padding: 5px 6px 6px;
   background: var(--bg); border-bottom: 1px solid var(--border); }
 #fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
 #fmt select { padding: 3px 4px; }
-#fmt #fImage { width: 98px; }
-#fmt #fDiagram { width: 116px; }
-#fmt #fMath { width: 104px; }
+#fmt #fImage { width: 92px; }
+#fmt #fDiagram { width: 104px; }
+#fmt #fMath { width: 95px; }
 #fmt #fHead { width: 84px; }                        /* 見出しの段階を選ぶだけなので、細くする */
 /* 行の区切り（1行目＝標準の書式、2行目＝目次・データ・編集、3行目＝拡張の挿入）。高さ0で、行を強制的に改める */
 #fmt .frowbreak { flex: 0 0 100%; height: 0; margin: -6px 0 0; }
@@ -530,7 +530,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               </select>
               <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
               <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
-              <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩</button>
+              <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩 定型文</button>
             </span>
           </span>
         </div>
