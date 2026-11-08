@@ -43,6 +43,8 @@ import uiprefs
 import filemodel
 import printing
 import shellreg
+import recycle
+import settingsdir
 import snippets
 from sanitize import sanitize
 
@@ -53,6 +55,7 @@ MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
 MAX_FILES = 5000
+INCLUDE_DOT_DIRS = (settingsdir.SETTINGS_DIR,)       # 先頭が . でも、一覧に出すフォルダー（設定のファイルを、エディタで編集できるように）
 SCAN_SECONDS = 10          # 一覧の読み込みに使う時間の上限（秒）
 MAX_INLINE_IMAGE = 20 * 1024 * 1024
 DATA_EXTENSIONS = (".csv", ".tsv", ".json")   # Vega-Lite の data.url で読めるローカルファイル
@@ -142,7 +145,7 @@ def scan_markdown(folder, max_seconds=SCAN_SECONDS):
     deadline = time.monotonic() + max_seconds
     for root, dirs, files in os.walk(folder):
         dirs[:] = sorted(d for d in dirs
-                         if d not in SKIP_DIRS and not d.startswith("."))
+                         if d not in SKIP_DIRS and (not d.startswith(".") or d in INCLUDE_DOT_DIRS))
         for name in sorted(files):
             if is_markdown(name):
                 rel = os.path.relpath(os.path.join(root, name), folder)
@@ -517,18 +520,18 @@ class Api:
         """自分のテンプレート（.md）を置く場所。"""
         return os.path.join(data_dir(), "templates")
 
-    def list_templates(self):
-        items = templating.builtin_templates() + templating.user_templates(self.template_folder())
-        return {"folder": self.template_folder(), "items": items}
+    def list_templates(self, context=None):
+        r = self._layers("templates", context, templating.builtin_templates(), templating.user_templates(self.template_folder()))
+        return {"folder": self.template_folder(), **r}
 
-    def get_template(self, tid):
+    def get_template(self, tid, context=None):
         """テンプレートの本文と、利用者に聞く欄を返す。選べるのは、組み込みと、自分のテンプレートの場所の中のファイルと、
         利用者が「ファイルを選ぶ」で選んだファイルだけ（画面から、任意のパスを読ませない）。"""
         try:
             kind, _, ref = str(tid).partition(":")
             if kind == "builtin" and ref in templating.BUILTIN:
                 text, name = templating.BUILTIN[ref], ref
-            elif kind == "file" and (templating.inside(self.template_folder(), ref)
+            elif kind == "file" and (any(templating.inside(d, ref) for d in self._allowed_dirs("templates", context))
                                      or os.path.normcase(os.path.abspath(ref)) in self._picked_templates):
                 if os.path.getsize(ref) > templating.MAX_BYTES:
                     return {"error": "大きすぎるファイルは、テンプレートにできません（1MB まで）"}
@@ -627,21 +630,51 @@ class Api:
         return {"error": None}
 
     # --- スニペット（文中に挿入する定型文。snippets.py）-------------------------
+    # --- 文書フォルダーに連動する設定（settingsdir.py）-----------------------------
+    @staticmethod
+    def _context_dir(context):
+        """設定を探し始めるフォルダー（文書のあるフォルダー、または、開いているフォルダー）。無ければ None。"""
+        if not isinstance(context, str) or not context:
+            return None
+        p = context
+        if os.path.isfile(p):
+            p = os.path.dirname(p)
+        return p if os.path.isdir(p) else None
+
+    def _project_dir(self, context):
+        d = self._context_dir(context)
+        return settingsdir.find_settings_dir(d) if d else None
+
+    def _layers(self, kind, context, builtin_items, user_items):
+        """文書フォルダーの設定・自分用・組み込みを、合わせた一覧（settingsdir.merge）。"""
+        proj = self._project_dir(context)
+        pk = settingsdir.kind_dir(proj, kind)
+        project_items = settingsdir.list_md(pk, "project") if pk else []
+        inherit = settingsdir.read_inherit(proj, kind) if pk else True
+        return {"items": settingsdir.merge(project_items, user_items, builtin_items, bool(pk), inherit),
+                "project": pk, "inherit": inherit, "settings_dir": proj, "context": self._context_dir(context)}
+
+    def _allowed_dirs(self, kind, context):
+        own = self.snippet_folder() if kind == "snippets" else self.template_folder()
+        return [d for d in (own, settingsdir.kind_dir(self._project_dir(context), kind)) if d]
+
+    # --- スニペット（文中に挿入する定型文。snippets.py）-------------------------
     def snippet_folder(self):
         """自分のスニペット（.md）を置く場所。"""
         return os.path.join(data_dir(), "snippets")
 
-    def list_snippets(self):
-        items = snippets.builtin_snippets() + snippets.user_snippets(self.snippet_folder())
-        return {"folder": self.snippet_folder(), "items": items}
+    def list_snippets(self, context=None):
+        """使える定型文の一覧。context: 設定を探し始める場所（文書のパスか、フォルダー）。"""
+        r = self._layers("snippets", context, snippets.builtin_snippets(), snippets.user_snippets(self.snippet_folder()))
+        return {"folder": self.snippet_folder(), **r}
 
-    def get_snippet(self, sid):
-        """スニペットの本文と、利用者に聞く欄。選べるのは、組み込みと、置き場の中のファイルだけ（任意のパスは読ませない）。"""
+    def get_snippet(self, sid, context=None):
+        """スニペットの本文と、利用者に聞く欄。選べるのは、組み込みと、設定の置き場（自分用・文書フォルダー）の中のファイルだけ。"""
         try:
             kind, _, ref = str(sid).partition(":")
             if kind == "builtin" and ref in snippets.BUILTIN:
                 text, name = snippets.BUILTIN[ref], ref
-            elif kind == "file" and templating.inside(self.snippet_folder(), ref):
+            elif kind == "file" and any(templating.inside(d, ref) for d in self._allowed_dirs("snippets", context)):
                 if os.path.getsize(ref) > snippets.MAX_BYTES:
                     return {"error": "大きすぎるファイルは、スニペットにできません（100KB まで）"}
                 doc = filemodel.read_document(ref)
@@ -653,6 +686,56 @@ class Api:
         except OSError as e:
             return {"error": f"読み込めません: {e}"}
         return {"error": None, "name": name, "text": text, "fields": snippets.fields(text)}
+
+    def _effective_items_text(self, kind):
+        """文書フォルダーの設定を除いた、使える項目（自分用＋組み込み）と、その本文。書き出しの元。"""
+        if kind == "snippets":
+            merged = settingsdir.merge([], snippets.user_snippets(self.snippet_folder()), snippets.builtin_snippets(), False, True)
+            builtin = snippets.BUILTIN
+        else:
+            merged = settingsdir.merge([], templating.user_templates(self.template_folder()), templating.builtin_templates(), False, True)
+            builtin = templating.BUILTIN
+        out = []
+        for it in merged:
+            kind_, _, ref = it["id"].partition(":")
+            try:
+                if kind_ == "builtin":
+                    text = builtin[ref]
+                else:
+                    doc = filemodel.read_document(ref)
+                    if doc.get("readonly"):
+                        continue
+                    text = doc["text"]
+            except (OSError, KeyError):
+                continue
+            out.append({"name": it["name"], "text": text})
+        return out
+
+    def export_settings(self, context):
+        """いま使える定型文・テンプレートを、文書フォルダーの `.markdown-editor\\` に、ファイルとして書き出す。
+        既にあるファイルは、上書きしない。書き出した種類は、そのフォルダーのファイルだけを使う（組み込みを消せる・書き換えられる）。"""
+        base = self._context_dir(context)
+        if not base:
+            return {"error": "先に文書を保存するか、フォルダーを開いてください（設定は、文書のあるフォルダーに置きます）"}
+        target = self._project_dir(context) or os.path.join(base, settingsdir.SETTINGS_DIR)
+        result = {"error": None, "dir": target}
+        try:
+            for kind in settingsdir.KINDS:
+                result[kind] = settingsdir.export_set(target, kind, self._effective_items_text(kind))
+        except OSError as e:
+            return {"error": f"書き出せませんでした: {e}"}
+        return result
+
+    def trash_setting_file(self, path, context=None):
+        """定型文・テンプレートのファイルを、ごみ箱へ移す（元に戻せる）。設定の置き場（自分用・文書フォルダー）の中の .md だけ。"""
+        if not (isinstance(path, str) and path.lower().endswith(".md")):
+            return {"error": "このファイルは、削除できません"}
+        dirs = self._allowed_dirs("snippets", context) + self._allowed_dirs("templates", context)
+        if not any(templating.inside(d, path) for d in dirs):
+            return {"error": "このファイルは、削除できません"}
+        if not recycle.move_to_trash(path):
+            return {"error": "ごみ箱へ移せませんでした"}
+        return {"error": None}
 
     def expand_snippet(self, text, values, selection):
         """欄を値に置き換えた挿入文字と、その中のカーソルの位置。選んでいる文字は {{選択}} に入る。"""

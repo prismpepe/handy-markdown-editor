@@ -50,6 +50,10 @@ def open_dialog():
     js("document.getElementById('bTemplate').click()")
     wait("!document.getElementById('mveil').hidden && document.getElementById('mList').value")
     time.sleep(.5)
+    # 一覧は、自分用が上、組み込みが下。初めに選ばれるのは、先頭（自分用）。このテストは、議事録から始める
+    js("(() => { const l = document.getElementById('mList'); l.value = 'builtin:議事録'; l.dispatchEvent(new Event('change')); })()")
+    wait("document.getElementById('mf_会議名')")
+    time.sleep(.3)
 
 
 def key(code, key_, target="document"):
@@ -67,8 +71,8 @@ def drive():
     check("ダイアログが開く", js("!document.getElementById('mveil').hidden"), True)
     check("一覧: 組み込み 4 つと、自分のテンプレート 1 つ",
           js("[...document.querySelectorAll('#mList optgroup')].map(g => g.label + ':' + [...g.querySelectorAll('option')].map(o => o.textContent).join('/'))"),
-          ['組み込み:議事録/リリースノート/日報・メモ/README のひな形', '自分のテンプレート:週報'])
-    check("先頭のテンプレート（議事録）が選ばれ、入力欄が出る",
+          ['自分のテンプレート:週報', '組み込み:議事録/リリースノート/日報・メモ/README のひな形'])
+    check("議事録を選ぶと、入力欄が出る",
           js("[document.getElementById('mList').selectedOptions[0].textContent, [...document.querySelectorAll('#mFields input')].map(i => i.dataset.name)]"),
           ['議事録', ['会議名', '開始時刻', '場所', '出席者', '記録者']])
     check("既定値（開始時刻: 10:00）が、入力欄に入る", js("document.getElementById('mf_開始時刻').value"), '10:00')

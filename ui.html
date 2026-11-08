@@ -109,6 +109,9 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   background: var(--bg); border-bottom: 1px solid var(--border); }
 #fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
 #fmt select { padding: 3px 4px; }
+#fmt #fHead { width: 84px; }                        /* 見出しの段階を選ぶだけなので、細くする */
+/* 行の区切り（1行目＝標準の書式、2行目＝目次・データ・編集、3行目＝拡張の挿入）。高さ0で、行を強制的に改める */
+#fmt .frowbreak { flex: 0 0 100%; height: 0; margin: -6px 0 0; }
 #fmt #fSnip { min-width: 0; padding: 3px 3px; }      /* 3画面の編集バーに、段を増やさず収めるため、細くする */
 /* ボタンは、用途ごとのグループにまとめ、グループの名前を上に小さく出す。折り返すときは、グループ単位（途中では割れない） */
 #fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; max-width: 100%; }
@@ -485,30 +488,16 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button data-f="quote" title="引用">❝</button>
               <button data-f="codeblock" title="コードブロック">{ }</button>
               <button data-f="rule" title="区切り線">―</button>
+              <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)" aria-label="画像">🖼</button>
+              <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)" aria-label="表">▦</button>
             </span>
           </span>
-          <span class="fgroup" role="group" aria-label="画像・表・データ・目次">
-            <span class="glabel">画像・表・データ・目次</span>
+          <span class="frowbreak" aria-hidden="true"></span>
+          <span class="fgroup" role="group" aria-label="目次・データ">
+            <span class="glabel">目次・データ</span>
             <span class="gbtns">
-              <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)">🖼 画像</button>
-              <select id="fImage" title="画像ファイルを選んで、文書へ入れる。パスで参照する書き方（画像ファイルが別に要る）と、Base64 で文書の中へ埋め込む書き方（Markdown ファイル1つで配布できる）を選べる">
-                <option value="">画像の挿入…</option>
-                <option value="ref">画像をパスで挿入</option>
-                <option value="pick">画像を Base64 で挿入</option>
-                <option value="all">全画像を Base64 に変換</option>
-                <option value="back">Base64 画像をファイルに復元</option>
-              </select>
-              <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)">▦ 表</button>
-              <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
               <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
-            </span>
-          </span>
-          <span class="fgroup" role="group" aria-label="チャート・数式・定型文">
-            <span class="glabel">チャート・数式・定型文</span>
-            <span class="gbtns">
-              <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
-              <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
-              <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩</button>
+              <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
             </span>
           </span>
           <span class="fgroup" role="group" aria-label="編集">
@@ -521,6 +510,22 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
               <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
               <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
               <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
+            </span>
+          </span>
+          <span class="frowbreak" aria-hidden="true"></span>
+          <span class="fgroup" role="group" aria-label="挿入（拡張）">
+            <span class="glabel">挿入（拡張）</span>
+            <span class="gbtns">
+              <select id="fImage" title="画像ファイルを選んで、文書へ入れる。パスで参照する書き方（画像ファイルが別に要る）と、Base64 で文書の中へ埋め込む書き方（Markdown ファイル1つで配布できる）を選べる">
+                <option value="">画像の挿入…</option>
+                <option value="ref">画像をパスで挿入</option>
+                <option value="pick">画像を Base64 で挿入</option>
+                <option value="all">全画像を Base64 に変換</option>
+                <option value="back">Base64 画像をファイルに復元</option>
+              </select>
+              <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
+              <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
+              <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩</button>
             </span>
           </span>
         </div>
@@ -580,7 +585,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div id="mBody">
       <div id="mLeft">
         <select id="mList" size="12" aria-label="テンプレートの一覧"></select>
-        <div class="trow"><button id="mPick">ファイルを選ぶ…</button><button id="mOpenDir">テンプレートの場所を開く</button></div>
+        <div class="trow"><button id="mPick">ファイルを選ぶ…</button><button id="mOpenDir">テンプレートの場所を開く</button><button id="mExport" title="いま使えるテンプレートと定型文を、文書フォルダーの .markdown-editor に、ファイルとして書き出す">この文書フォルダー用の設定を作る…</button><button id="mEdit" title="選んでいるテンプレートを、このエディタで開いて、編集する">選んだテンプレートを編集</button></div>
       </div>
       <div id="mRight">
         <div id="mFields"></div>
@@ -1315,6 +1320,7 @@ async function openPath(path, restore) {
   else status('');
   if (!folder || !path.toLowerCase().startsWith(folder.toLowerCase() + '\\')) await loadFolder(dirName(path));
   renderList();
+  loadSnippets();                                            // 文書のフォルダーが変わると、使える設定も変わる
   return true;
 }
 
@@ -1337,6 +1343,7 @@ async function saveTo(path, stamp) {
     const before = doc.path;
     doc.path = path; doc.stamp = r.stamp; cm.markClean(); doc.metaDirty = false;
     navSaved(before, path);
+    loadSnippets();
     if (!doc.readonly) { api.claim_open(path); if (before && before.toLowerCase() !== path.toLowerCase()) api.release_open(before); }
     dropDrafts([before, path, null]);     // 保存した文書（と、保存前の「無題」）の下書きは、もう要らない
     updateDirty(); status('保存しました ' + new Date().toLocaleTimeString(), false, 4000);
@@ -1525,6 +1532,7 @@ async function loadFolder(path) {
   if (r.error) { showMsg(r.error); return; }
   showMsg(''); folder = path; files = r.files; listTruncated = !!r.truncated;
   $('folder').textContent = path; $('filter').value = ''; renderList();
+  loadSnippets();
 }
 let lastSync = 0;
 async function syncList(force) {
@@ -1678,8 +1686,10 @@ const tmplValues = () => Object.fromEntries([...$('mFields').querySelectorAll('i
 
 function tmplInfo(text, bad) { $('mInfo').textContent = text || ''; $('mInfo').classList.toggle('bad', !!bad); }
 
+let tmplItems = [];
 async function fillTemplateList(keepId) {
-  const r = await api.list_templates();
+  const r = await api.list_templates(settingsContext());
+  tmplItems = r.items;
   const list = $('mList'); list.innerHTML = '';
   const group = (label, items, empty) => {
     const g = document.createElement('optgroup'); g.label = label;
@@ -1687,8 +1697,12 @@ async function fillTemplateList(keepId) {
     if (!items.length && empty) { const o = new Option(empty, ''); o.disabled = true; g.appendChild(o); }
     list.appendChild(g);
   };
-  group('組み込み', r.items.filter(i => i.kind === 'builtin'));
-  group('自分のテンプレート', r.items.filter(i => i.kind === 'user'), '（まだありません）');
+  const replaceMode = !!r.project && r.inherit === false;            // 文書フォルダーの設定だけを使う
+  for (const [kind, label] of SETTING_LAYERS) {
+    const items = r.items.filter(i => i.kind === kind);
+    if (items.length) group(kind === 'user' ? '自分のテンプレート' : label, items);
+    else if (kind === 'user' && !replaceMode) group('自分のテンプレート', [], '（まだありません）');
+  }
   if (tmplPicked.length) group('選んだファイル', tmplPicked);
   $('mdlg').dataset.folder = r.folder;
   const want = keepId && [...list.options].find(o => o.value === keepId);
@@ -1708,7 +1722,7 @@ async function openTemplateDlg() {
 function closeTemplateDlg() { $('mveil').hidden = true; cm.focus(); }
 
 async function chooseTemplate(id) {
-  const r = await api.get_template(id);
+  const r = await api.get_template(id, settingsContext());
   if (r.error) { tmpl = null; $('mFields').innerHTML = ''; $('mPrev').textContent = ''; $('mCreate').disabled = true; tmplInfo(r.error, true); return; }
   tmpl = { id, ...r };
   const box = $('mFields'); box.innerHTML = '';
@@ -1767,6 +1781,8 @@ $('mOpenDir').onclick = async () => {
 $('mdlg').addEventListener('keydown', e => {                    // 入力欄で Enter を押すと、作成する
   if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !$('mCreate').disabled) { e.preventDefault(); createFromTemplate(); }
 });
+$('mExport').onclick = async () => { if (await createSettingsHere()) await fillTemplateList(tmpl && tmpl.id); };
+$('mEdit').onclick = () => { const it = tmpl && tmplItems.find(i => i.id === tmpl.id); if (it) editSettingsItem('templates', it); else tmplInfo('選んだファイルは、ファイルを開いて、編集してください', true); };
 window.addEventListener('focus', () => { if (tmplDlgOpen()) fillTemplateList(tmpl && tmpl.id); });   // 場所へ .md を置いて戻ったら、一覧を更新する
 
 // ============================================================ 表の編集支援（整形・列と行の操作・Tab でセルを移る）
@@ -2045,24 +2061,83 @@ async function restoreDraft(d) {
 // ============================================================ スニペット（文中に挿入する定型文）
 // 組み込みと、自分の .md（%APPDATA%\MarkdownEditor\snippets\）。欄（{{名前}}）があれば、入力を聞いてから、カーソルの位置へ挿入する。
 // {{選択}} は、選んでいる文字、{{カーソル}} は、挿入したあとのカーソルの位置。
-let snipItems = [];
+let snipItems = [], snipInfo = {};
+// 設定（定型文・テンプレート）を探し始める場所: 保存した文書があれば、そのフォルダー。無ければ、開いているフォルダー
+const settingsContext = () => doc.path ? dirName(doc.path) : (folder || null);
 async function loadSnippets() {
-  try { snipItems = (await api.list_snippets()).items; } catch (e) { snipItems = []; }
+  try { snipInfo = await api.list_snippets(settingsContext()); snipItems = snipInfo.items; } catch (e) { snipItems = []; snipInfo = {}; }
 }
-// ボタンを押すと、ボタンの下に一覧のメニューを出す（編集バーに、場所を取る選択欄を足さないため）
+const SETTING_LAYERS = [['project', 'この文書フォルダーの設定'], ['user', '自分用'], ['builtin', '組み込み']];
+// ボタンを押すと、ボタンの下に一覧のメニューを出す（編集バーに、場所を取る選択欄を足さないため）。項目の右クリックで、編集・削除
 function openSnippetMenu() {
   if (doc.readonly) return;
-  const run = id => () => insertSnippet(id);
-  const part = (label, kind) => {
-    const items = snipItems.filter(i => i.kind === kind);
-    return items.length ? [{ label: '— ' + label + ' —', disabled: true, run() {} }, ...items.map(i => ({ label: i.name, run: run(i.id) }))] : [];
-  };
+  const items = [];
+  for (const [kind, label] of SETTING_LAYERS) {
+    const list = snipItems.filter(i => i.kind === kind);
+    if (!list.length) continue;
+    items.push({ label: '— ' + label + ' —', disabled: true, run() {} });
+    for (const i of list) items.push({ label: i.name, run: () => insertSnippet(i.id), ctx: e => settingsItemMenu('snippets', i, e.clientX, e.clientY) });
+  }
+  items.push('-');
+  items.push({ label: 'この文書フォルダー用の設定を作る…', run: () => createSettingsHere() });
+  items.push({ label: '自分用の定型文の場所を開く…', run: () => insertSnippet(':open') });
+  items.push({ label: '※ 項目を右クリックすると、編集・削除', disabled: true, run() {} });
   const r = $('fSnip').getBoundingClientRect();
-  showCtx(r.left, r.bottom + 2, [...part('組み込み', 'builtin'), ...part('自分の定型文', 'user'), '-', { label: '定型文の場所を開く…', run: run(':open') }]);
+  showCtx(r.left, r.bottom + 2, items);
+}
+// 項目（定型文・テンプレート）の右クリックメニュー。組み込みは、設定を作ると、編集・削除できるようになる
+function settingsItemMenu(kind, it, x, y) {
+  const builtin = it.kind === 'builtin';
+  showCtx(x, y, [
+    { label: builtin ? '編集…（設定を作って、開く）' : '編集（このエディタで開く）', run: () => editSettingsItem(kind, it) },
+    { label: '削除（ごみ箱へ）', disabled: builtin, run: () => deleteSettingsItem(kind, it) },
+    ...(builtin ? ['-', { label: '※ 組み込みは、設定を作ると、消せます', disabled: true, run() {} }] : []),
+  ]);
+}
+const itemPath = it => it.id.slice(5);                       // 'file:' を除く
+async function askMaybeOverTemplates(title, text, buttons) {        // テンプレートのダイアログが開いていれば、その上に出す（確認が、下に隠れないように）
+  return tmplDlgOpen() ? await askOver($('mveil'), title, text, buttons) : await ask(title, text, buttons);
+}
+// いま使える定型文・テンプレートを、文書フォルダーの .markdown-editor\ に、ファイルとして書き出す。書き出したあとは、そのファイルだけが使われる
+async function createSettingsHere() {
+  const ctx = settingsContext();
+  if (!ctx) { status('先に文書を保存するか、フォルダーを開いてください（設定は、文書のあるフォルダーに置きます）', true, 7000); return null; }
+  const i = await askMaybeOverTemplates('この文書フォルダー用の設定を作りますか？',
+    '文書のあるフォルダー（親のフォルダーに、すでに設定があれば、そこ）の「.markdown-editor」に、いま使える定型文とテンプレートを、ファイルとして書き出します。\n\n'
+    + '書き出したあとは、そのフォルダーのファイルだけが使われます（組み込みは出ません）。ファイルは、書き換える・消す・足すのが自由です。フォルダーごとコピーすれば、別の PC にも持ち出せます。\n既にあるファイルは、上書きしません。',
+    [{ label: '作る', primary: true }, { label: 'キャンセル' }]);
+  if (i !== 0) return null;
+  const r = await api.export_settings(ctx);
+  if (r.error) { status(r.error, true, 8000); return null; }
+  await loadSnippets(); syncList(true);
+  status(`設定を作りました: ${r.dir}（定型文 ${r.snippets.written} 件・テンプレート ${r.templates.written} 件。左の一覧の「.markdown-editor」から、編集できます）`, false, 12000);
+  return r;
+}
+async function editSettingsItem(kind, it) {
+  let path;
+  if (it.kind === 'builtin') {
+    if (!await createSettingsHere()) return;
+    const again = kind === 'snippets' ? await api.list_snippets(settingsContext()) : await api.list_templates(settingsContext());
+    const mine = again.items.find(x => x.name === it.name && x.kind === 'project');
+    if (!mine) { status('設定は作りましたが、その項目のファイルが見つかりません', true, 6000); return; }
+    path = itemPath(mine);
+  } else path = itemPath(it);
+  if (tmplDlgOpen()) closeTemplateDlg();
+  await openPath(path);
+}
+async function deleteSettingsItem(kind, it) {
+  const path = itemPath(it);
+  const i = await askMaybeOverTemplates('削除しますか？', `「${it.name}」を、ごみ箱へ移します（元に戻せます）。\n${path}`, [{ label: 'ごみ箱へ移す', primary: true }, { label: 'キャンセル' }]);
+  if (i !== 0) return;
+  const r = await api.trash_setting_file(path, settingsContext());
+  if (r.error) { status(r.error, true, 6000); return; }
+  await loadSnippets(); syncList(true);
+  if (tmplDlgOpen()) await fillTemplateList();
+  status(`「${it.name}」を、ごみ箱へ移しました`, false, 5000);
 }
 async function insertSnippet(id) {
   if (id === ':open') { const r = await api.open_snippet_folder(); if (r.error) status(r.error, true, 6000); return; }
-  const sn = await api.get_snippet(id);
+  const sn = await api.get_snippet(id, settingsContext());
   if (sn.error) { status(sn.error, true, 6000); return; }
   let values = {};
   if (sn.fields.length) {
@@ -2644,6 +2719,7 @@ function showCtx(x, y, items) {
     b.append(l, k);
     b.addEventListener('mousedown', e => e.preventDefault());
     b.addEventListener('click', () => { hideCtx(); it.run(); });
+    if (it.ctx) b.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); it.ctx(e); });      // 項目の右クリック（編集・削除など）
     m.appendChild(b);
   }
   m.hidden = false;

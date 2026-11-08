@@ -62,10 +62,11 @@ def drive():
     check("編集バーに、定型文のボタンがある（チャート・数式の隣）", js("document.getElementById('fMath').nextElementSibling.id"), 'fSnip')
     js("document.getElementById('fSnip').click()")
     check("押すと、メニューが出る", wait("!document.getElementById('ctx').hidden"), True)
-    check("組み込みと、自分の定型文が、見出しで分かれて並ぶ",
-          js("[...document.querySelectorAll('#ctx .citem')].filter(b => b.disabled).map(b => b.textContent)"), ['— 組み込み —', '— 自分の定型文 —'])
-    check("組み込み9つ・自分の1つ・場所を開く", js("[...document.querySelectorAll('#ctx .citem')].filter(b => !b.disabled).length"), 11)
-    check("自分の定型文は、ファイル名で出る", js("[...document.querySelectorAll('#ctx .citem')].some(b => b.textContent === '署名')"), True)
+    check("自分用と組み込みが、見出しで分かれて並ぶ（自分用が上）",
+          js("[...document.querySelectorAll('#ctx .citem')].filter(b => b.disabled).map(b => b.textContent)"), ['— 自分用 —', '— 組み込み —', '※ 項目を右クリックすると、編集・削除'])
+    check("組み込み8つ・自分用1つ・設定を作る・場所を開く", js("[...document.querySelectorAll('#ctx .citem')].filter(b => !b.disabled).length"), 8 + 1 + 2)
+    check("自分用の定型文は、ファイル名で出る", js("[...document.querySelectorAll('#ctx .citem')].some(b => b.textContent === '署名')"), True)
+    check("末尾に、設定を作る項目がある", js("[...document.querySelectorAll('#ctx .citem')].some(b => b.textContent === 'この文書フォルダー用の設定を作る…')"), True)
     check("メニューが、画面に収まる", js("(() => { const r = document.getElementById('ctx').getBoundingClientRect(); return r.bottom <= innerHeight && r.right <= innerWidth && r.top >= 0 })()"), True)
     js("document.getElementById('ctx').hidden = true; null")
     check("ボタンが、編集欄の幅に収まる", js("(() => { const s = document.getElementById('fSnip').getBoundingClientRect(), p = document.getElementById('editorPane').getBoundingClientRect(); return s.right <= p.right && s.left >= p.left })()"), True)
@@ -74,9 +75,11 @@ def drive():
     # --- 選んでいる文字を使う（欄が無い）
     set_text("前\nここを読む\n後")
     js("cm.setSelection({line: 1, ch: 0}, {line: 1, ch: 5}); null")
-    choose('注意書き')
-    check("選んでいた文字が、{{選択}} に入る", wait("cm.getValue() === '前\\n> **注意**　ここを読む\\n後'"), True)
-    check("カーソルは、挿入した文字の末尾", js("[cm.getCursor().line, cm.getCursor().ch]"), [1, 14])
+    choose('囲み（注意・ヒント）')
+    check("囲みは、種類（既定は「注意」）を聞く", wait("document.querySelector('#dExtra .sniprow span') && document.querySelector('#dExtra .sniprow span').textContent === '種類' && document.querySelector('#dExtra input').value === '注意'"), True)
+    js("document.querySelector('#dExtra input').value = 'ヒント'; document.querySelector('#dBtns .primary').click()")
+    check("選んでいた文字が、{{選択}} に入り、種類が反映される", wait("cm.getValue() === '前\\n> **ヒント**　ここを読む\\n後'"), True)
+    check("カーソルは、挿入した文字の末尾", js("[cm.getCursor().line, cm.getCursor().ch]"), [1, 15])
     check("1回の取り消しで元に戻る", (js("cm.undo(); null"), js("cm.getValue()"))[1], "前\nここを読む\n後")
     check("メニューは、選んだら閉じる", js("document.getElementById('ctx').hidden"), True)
 
@@ -119,7 +122,7 @@ def drive():
     check("組み込みの欄（年月日・曜日）は、聞かずに入る", wait("/^\\d{4}年\\d{1,2}月\\d{1,2}日（[月火水木金土日]）$/.test(cm.getValue())"), True)
 
     # --- 場所を開く／新しいファイルが、一覧に出る
-    choose('定型文の場所を開く…')
+    choose('自分用の定型文の場所を開く…')
     time.sleep(.4)
     check("場所を開いても、文書は変わらない", js("cm.getValue().length > 0"), True)
     open(os.path.join(api.snippet_folder(), '追加.md'), 'w', encoding='utf-8').write("追加です")

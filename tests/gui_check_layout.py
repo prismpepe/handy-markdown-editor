@@ -37,7 +37,8 @@ if not SCENARIO:       # 親: 引き継ぎの各場合を別の起動で確か�
 
 os.environ['APPDATA'] = tempfile.mkdtemp(prefix='md_appdata_')
 import webview
-import mdeditor
+import mdeditor
+
 import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 
 if SCENARIO in MIGRATION:
@@ -95,18 +96,25 @@ def finish():
     shown = js("[...document.querySelectorAll('[hidden]')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.id || e.className || e.tagName)")
     check("hidden 属性の要素が、すべて隠れている", shown, [])
 
-    # 編集ボタンの列: 5つのグループ。見出しの名前と並び、引用がコードブロックの隣、折り返しはグループ単位
+    # 編集ボタンの列: 5つのグループ。1行目＝標準の書式、2行目＝目次・データ・編集、3行目＝拡張の挿入
     check("編集ボタンのグループの名前と並び", js("[...document.querySelectorAll('#fmt .fgroup .glabel')].map(e => e.textContent)"),
-          ['書式', 'リスト・ブロック', '画像・表・データ・目次', 'チャート・数式・定型文', '編集'])
-    check("引用は、リスト・ブロックのグループで、コードブロックの隣", js("[...document.querySelectorAll('#fmt .fgroup')[1].querySelectorAll('button')].map(b => b.dataset.f)"),
-          ['ul', 'ol', 'task', 'quote', 'codeblock', 'rule'])
+          ['書式', 'リスト・ブロック', '目次・データ', '編集', '挿入（拡張）'])
+    check("リスト・ブロックは、引用がコードブロックの隣。末尾に、画像・表（アイコンだけ）", js("[...document.querySelectorAll('#fmt .fgroup')[1].querySelectorAll('button')].map(b => b.dataset.f)"),
+          ['ul', 'ol', 'task', 'quote', 'codeblock', 'rule', 'image', 'table'])
+    check("画像・表のボタンは、アイコンだけ（文言なし）", js("[...document.querySelectorAll('#fmt button[data-f=image], #fmt button[data-f=table]')].map(b => b.textContent.trim())"), ['🖼', '▦'])
     check("書式のグループは、文字単位のもの（見出し・装飾・リンク）だけ", js("[...document.querySelectorAll('#fmt .fgroup')[0].querySelectorAll('button')].map(b => b.dataset.f)"),
           ['bold', 'italic', 'strike', 'code', 'link'])
+    check("見出しの選択欄は、細い", js("document.getElementById('fHead').getBoundingClientRect().width <= 100"), True)
     check("チャートと数式は、2つの選択欄に分かれる（名前）", (js("document.querySelector('#fDiagram option').textContent"), js("document.querySelector('#fMath option').textContent")), ('チャートを挿入…', '数式を挿入…'))
-    check("目次ボタンは、2段目（画像・表・データ・目次）の末尾", js("[...document.querySelectorAll('#fmt .fgroup')[2].querySelectorAll('.gbtns > *')].map(e => e.id || e.dataset.f)"), ['image', 'fImage', 'table', 'fTable', 'fToc'])
-    check("チャート・数式・定型文のグループは、2つの選択欄と、定型文のボタン", js("[...document.querySelectorAll('#fmt .fgroup')[3].querySelectorAll('.gbtns > *')].map(e => e.id)"), ['fDiagram', 'fMath', 'fSnip'])
-    check("既定の3画面（幅1400）では、3段（2+1+2グループ）に折り返す", (w.resize(1400, 700), time.sleep(0.8), js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
-        const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""))[2], '2+1+2')
+    check("2行目: 目次・表・データ", js("[...document.querySelectorAll('#fmt .fgroup')[2].querySelectorAll('.gbtns > *')].map(e => e.id)"), ['fToc', 'fTable'])
+    check("3行目（拡張）: 画像の挿入・チャート・数式・定型文", js("[...document.querySelectorAll('#fmt .fgroup')[4].querySelectorAll('.gbtns > *')].map(e => e.id)"), ['fImage', 'fDiagram', 'fMath', 'fSnip'])
+    check("既定の3画面（幅1400）では、狭いので、グループが1つずつ並ぶ", (w.resize(1400, 700), time.sleep(0.8), js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
+        const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""))[2], '1+1+1+1+1')
+    js("document.getElementById('editorPane').style.flex = '0 0 640px'")
+    time.sleep(.6)
+    check("編集欄が広いと、3行（1行目＝書式+リスト・ブロック、2行目＝目次・データ+編集、3行目＝拡張）", js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
+        const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""), '2+2+1')
+    js("document.getElementById('editorPane').style.flex = ''")
     for width in (1400, 900, 600, 420):
         w.resize(width, 700)
         time.sleep(0.8)
@@ -114,6 +122,11 @@ def finish():
             const tops = new Set([...g.querySelectorAll('.gbtns > *')].map(e => Math.round(e.getBoundingClientRect().top)));
             return tops.size > 1; }).map(g => g.querySelector('.glabel').textContent)""")
         if width >= 1400:
+            js("document.getElementById('editorPane').style.flex = '0 0 640px'"); time.sleep(.5)
+            split = js("""[...document.querySelectorAll('#fmt .fgroup')].filter(g => {
+                const tops = new Set([...g.querySelectorAll('.gbtns > *')].map(e => Math.round(e.getBoundingClientRect().top)));
+                return tops.size > 1; }).map(g => g.querySelector('.glabel').textContent)""")
+            js("document.getElementById('editorPane').style.flex = ''")
             check("幅 %d: どのグループも、途中で折り返さない" % width, split, [])
         else:       # 編集欄が、グループより狭いときは、グループの中で折り返す（折り返さずに、はみ出すと、プレビューに重なる）
             over = js("""(() => { const f = document.getElementById('fmt').getBoundingClientRect();

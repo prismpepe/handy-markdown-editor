@@ -13,7 +13,7 @@ NOW = datetime.datetime(2026, 11, 8, 9, 5)
 
 def test_builtin_list_and_all_builtins_expand():
     names = [i["name"] for i in S.builtin_snippets()]
-    assert "注意書き" in names and "折りたたみ" in names and len(set(names)) == len(names)
+    assert "囲み（注意・ヒント）" in names and "折りたたみ" in names and len(set(names)) == len(names)
     for text in S.BUILTIN.values():
         out = S.expand(text, {}, "", NOW)
         assert "{{" not in out["text"] and "\x00" not in out["text"]
@@ -82,13 +82,14 @@ def test_api_list_get_expand(api, tmp_path):
         f.write("{{氏名:山田}}\n{{日付}}")
     lst = api.list_snippets()
     assert lst["folder"] == api.snippet_folder()
-    assert [i["name"] for i in lst["items"]][-1] == "署名"
+    assert [i["name"] for i in lst["items"]][0] == "署名"                                   # 自分用が、組み込みより上（優先）
     mine = [i for i in lst["items"] if i["kind"] == "user"][0]
     got = api.get_snippet(mine["id"])
     assert got["error"] is None and got["fields"] == [{"name": "氏名", "default": "山田"}]
-    b = api.get_snippet("builtin:注意書き")
-    assert b["error"] is None and b["fields"] == []
-    assert api.expand_snippet(b["text"], {}, "本文")["text"] == "> **注意**　本文"
+    b = api.get_snippet("builtin:囲み（注意・ヒント）")
+    assert b["error"] is None and b["fields"] == [{"name": "種類", "default": "注意"}]       # 注意・ヒントを、1つにまとめて、種類を聞く
+    assert api.expand_snippet(b["text"], {"種類": "注意"}, "本文")["text"] == "> **注意**　本文"
+    assert api.expand_snippet(b["text"], {"種類": "ヒント"}, "本文")["text"] == "> **ヒント**　本文"
 
 
 def test_api_get_snippet_refuses_outside_paths_and_big_files(api, tmp_path):

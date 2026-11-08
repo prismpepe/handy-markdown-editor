@@ -157,7 +157,7 @@ def test_Api_一覧は_組み込みと_自分のテンプレート(api):
     open(os.path.join(api.template_folder(), "週報.md"), "w", encoding="utf-8").write("# {{週}}週報\n")
     r = api.list_templates()
     assert r["folder"] == api.template_folder()
-    assert [i["name"] for i in r["items"]] == list(templating.BUILTIN) + ["週報"]
+    assert [i["name"] for i in r["items"]] == ["週報"] + list(templating.BUILTIN)            # 自分用が、組み込みより上（優先）
 
 
 def test_Api_組み込みを_取れる(api):
