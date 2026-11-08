@@ -1417,6 +1417,8 @@ function treeRevealCurrent() {
   let p = ''; for (const x of parts) { p = p ? p + '/' + x : x; tree.open.set(p, true); }
 }
 function renderTreeNode(list, node, depth) {
+  // 各フォルダの中は、そのフォルダ直下のファイルが先、サブフォルダが後（階層表示にする前の並びと同じ）
+  for (const f of node.files) list.appendChild(fileItem(f.rel, f.name, false, 10 + depth * 14));
   const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
   for (const d of dirs) {
     const open = treeIsOpen(d.path, depth);
@@ -1431,7 +1433,6 @@ function renderTreeNode(list, node, depth) {
     list.appendChild(row);
     if (open) renderTreeNode(list, d, depth + 1);
   }
-  for (const f of node.files) list.appendChild(fileItem(f.rel, f.name, false, 10 + depth * 14));
 }
 function fileItem(rel, label, showDir, indent) {
   const full = folder + '\\' + rel.replace(/\//g, '\\');
