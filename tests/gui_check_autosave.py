@@ -23,8 +23,8 @@ real = os.path.join(work, 'real.md')
 open(real, 'w', encoding='utf-8').write('元の内容\n')
 # 前回の起動で残った下書き（無題 1 つと、ファイルの 1 つ）
 root = mdeditor.drafts_root()
-drafts.save_draft(root, None, '# 前回の無題\n本文', slot='untitledold')
-drafts.save_draft(root, real, '# 書きかけ\nファイルの下書き', 'UTF-8', 'LF')
+drafts.save_draft(root, None, '# 前回の無題\n本文', slot='untitledold', owner=[2_000_000_000, 1])
+drafts.save_draft(root, real, '# 書きかけ\nファイルの下書き', 'UTF-8', 'LF', slot='untitledold', owner=[2_000_000_000, 1])
 
 api = mdeditor.Api(None)
 w = webview.create_window('t', html=mdeditor.build_html(), js_api=api, width=1400, height=900, x=20, y=20)

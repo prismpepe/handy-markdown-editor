@@ -12,6 +12,8 @@ import hashlib
 import json
 import os
 
+import multiwin
+
 MAX_DRAFTS = 50                 # 置き場に残す下書きの数の上限（超えたら古いものから消す）
 UNTITLED = "untitled"
 PREVIEW_CHARS = 60
@@ -22,21 +24,24 @@ def draft_key(path, slot=UNTITLED):
     起動ごとに分けるのは、前回の未処理の下書きを、今回の「無題」が上書きしないため。"""
     if not path:
         return slot
-    return hashlib.sha1(os.path.abspath(path).lower().encode("utf-8")).hexdigest()[:16]
+    # 文書の下書きも、ウィンドウ（起動）ごとに分ける。同じ文書を、複数のウィンドウで開いても、下書きを取り合わない
+    suffix = slot[len(UNTITLED):] if slot.startswith(UNTITLED) else ""
+    return hashlib.sha1(os.path.abspath(path).lower().encode("utf-8")).hexdigest()[:16] + "s" + suffix
 
 
 def _file(root, key):
     return os.path.join(root, key + ".json")
 
 
-def save_draft(root, path, text, encoding="UTF-8", newline="CRLF", now=None, slot=UNTITLED):
+def save_draft(root, path, text, encoding="UTF-8", newline="CRLF", now=None, slot=UNTITLED, owner=None):
     """下書きを書く。中身が空（空白だけ）なら、守るものが無いので下書きを消す。書けたら下書きの名前（key）、消したら None。"""
     key = draft_key(path, slot)
     if not text or not text.strip():
         delete_draft(root, key)
         return None
     when = (now or datetime.datetime.now()).isoformat(timespec="seconds")
-    body = {"path": path or None, "text": text, "encoding": encoding, "newline": newline, "saved_at": when}
+    body = {"path": path or None, "text": text, "encoding": encoding, "newline": newline, "saved_at": when,
+            "owner": list(owner) if owner is not None else list(multiwin.process_stamp())}          # 書いたウィンドウ（プロセス）。動いている間は、「前回の残り」として出さない
     os.makedirs(root, exist_ok=True)
     target = _file(root, key)
     tmp = target + ".tmp"
@@ -93,8 +98,16 @@ def _disk_newer(body):
         return False
 
 
-def list_drafts(root):
-    """残っている下書きの一覧（新しい順）。壊れたものは出さない。"""
+def _owner_alive(body):
+    owner = body.get("owner")
+    if not (isinstance(owner, list) and len(owner) == 2):
+        return False                                       # 持ち主の記録が無い（旧い版の下書き）: 残りものとして扱う
+    return multiwin.is_alive(owner[0], owner[1])
+
+
+def list_drafts(root, skip_live=False):
+    """残っている下書きの一覧（新しい順）。壊れたものは出さない。
+    skip_live: 書いたウィンドウが、まだ動いている下書きは出さない（別のウィンドウで編集中のものを、前回の残りと取り違えない）。"""
     out = []
     try:
         names = [n[:-5] for n in os.listdir(root) if n.endswith(".json")]
@@ -102,7 +115,7 @@ def list_drafts(root):
         return out
     for key in names:
         body = _load(root, key)
-        if not body:
+        if not body or (skip_live and _owner_alive(body)):
             continue
         text = body["text"]
         first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")

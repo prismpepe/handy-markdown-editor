@@ -106,6 +106,7 @@ OFN_OVERWRITEPROMPT = 0x2
 SAVE_KINDS = {
     "md": ("Markdown (*.md)", "*.md", "md", "名前を付けて保存"),
     "pdf": ("PDF (*.pdf)", "*.pdf", "pdf", "PDF として保存"),
+    "html": ("HTML (*.html)", "*.html", "html", "HTML として書き出す"),
     "json": ("JSON (*.json)", "*.json", "json", "JSON ファイルとして保存"),
 }
 

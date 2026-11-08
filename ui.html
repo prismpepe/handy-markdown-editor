@@ -68,6 +68,16 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   border: 1px solid var(--border); border-radius: 6px; }
 #count { padding: 0 10px 4px; color: var(--muted); font-size: 12px; }
 #list { flex: 1; overflow-y: auto; }
+/* フォルダー全体の検索（本文）: 「本文を探す」の切替と、結果の一覧 */
+#bodyRow { display: flex; align-items: center; gap: 10px; padding: 0 10px 4px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+#bodyRow label { white-space: nowrap; cursor: pointer; } #bodyRow span[hidden] { display: none; }
+.shead { padding: 6px 10px 2px; font-weight: 600; font-size: 13px; cursor: pointer; word-break: break-all; border-top: 1px solid var(--border); }
+.shead:first-child { border-top: 0; } .shead:hover { background: var(--sel); }
+.shead .scnt { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+.shit { padding: 2px 10px 2px 14px; font-size: 12.5px; cursor: pointer; display: grid; grid-template-columns: 3.4em 1fr; gap: 6px; word-break: break-all; line-height: 1.45; }
+.shit:hover { background: var(--sel); } .shit .sln { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.shit mark { background: rgba(255, 211, 61, .55); color: inherit; border-radius: 2px; padding: 0 1px; }
+.smore { padding: 2px 10px 6px 14px; color: var(--muted); font-size: 12px; cursor: pointer; } .smore:hover { color: var(--fg); }
 /* 一覧の階層表示（サブフォルダをアコーディオンで開閉） */
 .dirrow { padding: 4px 10px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fg); display: flex; align-items: baseline; gap: 4px; user-select: none; }
 .dirrow:hover { background: var(--sel); }
@@ -401,6 +411,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   <button id="bSave" title="Ctrl+S">💾 保存</button>
   <button id="bSaveAs" title="Ctrl+Shift+S">名前を付けて保存</button>
   <button id="bPrint" title="Ctrl+P">🖨 印刷／PDF</button>
+  <button id="bHtml" title="いま書いている文書を、1つで完結する HTML ファイルに書き出す（図・グラフ・数式も入ります）">🌐 HTML</button>
   <span class="sep"></span>
   <button id="bReload" title="F5">↻ 更新</button>
   <button id="btnFont" title="表示フォントの設定">🔤 フォント</button>
@@ -428,6 +439,13 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <h2>フォルダー</h2>
     <div id="folder">未選択（「フォルダーを開く」で選びます）</div>
     <input id="filter" type="search" placeholder="🔍 ファイル名で絞り込み">
+    <div id="bodyRow">
+      <label title="ファイル名ではなく、ファイルの中身（本文）を、フォルダー全体から探します"><input id="bodySearch" type="checkbox"> 本文を探す</label>
+      <span id="bodyOpts" hidden>
+        <label title="大文字と小文字を区別します"><input id="bsCase" type="checkbox"> Aa</label>
+        <label title="正規表現で探します（1行ずつ）"><input id="bsRe" type="checkbox"> .*</label>
+      </span>
+    </div>
     <div id="count"></div>
     <div id="treeBtns" hidden><button id="treeOpen" title="すべてのフォルダを開きます">すべて開く</button><button id="treeClose" title="すべてのフォルダを閉じます">すべて閉じる</button></div>
     <div id="list"></div>
@@ -715,6 +733,7 @@ const scheduleCounters = () => { clearTimeout(counterTimer); counterTimer = setT
 
 // ============================================================ プレビュー
 let renderSeq = 0, previewTimer = null, followCursor = false;
+let previewSettled = Promise.resolve();
 const svgCache = new Map();           // 図の記述 → 描いた SVG（打鍵のたびに描き直さない）
 let mermaidReady = null, diagramSeq = 0;
 
@@ -729,13 +748,12 @@ async function updatePreview(resetScroll) {
   $('preview').innerHTML = html || '<p class="empty">（空の文書です）</p>';
   applyCachedDiagrams();
   applyCachedVega();
-  renderMath(seq);
+  const mathDone = renderMath(seq);
   pv.scrollTop = keep;
   if (resetScroll) { followCursor = false; pv.scrollTop = 0; }
   else if (followCursor) { followCursor = false; previewToCursor(); }
   if (fitMode) fitWidth();
-  renderDiagrams(seq);
-  renderVega(seq);
+  previewSettled = Promise.all([mathDone, renderDiagrams(seq), renderVega(seq)]).catch(() => {});      // HTML の書き出しが、描画の完了を待つために使う
 }
 
 // 図の記憶は「記述＋置き場所の幅」で引く。ガントは幅で全体の大きさを決めるため、幅が変われば描き直す
@@ -774,9 +792,9 @@ function typesetMath(root, katex) {
 
 // 打鍵のたびにプレビューが作り直されるので、読み込み済みなら、その場で（描画の待ちなしに）組む
 function renderMath(seq) {
-  if (!document.querySelector('#preview .math:not(.typeset)')) return;
-  if (window.katex) { typesetMath($('preview'), window.katex); return; }
-  loadKatex().then(katex => { if (seq === renderSeq) typesetMath($('preview'), katex); })
+  if (!document.querySelector('#preview .math:not(.typeset)')) return Promise.resolve();
+  if (window.katex) { typesetMath($('preview'), window.katex); return Promise.resolve(); }
+  return loadKatex().then(katex => { if (seq === renderSeq) typesetMath($('preview'), katex); })
     .catch(e => { katexReady = null; showMsg('数式の描画部品を読み込めませんでした: ' + e); });
 }
 
@@ -1265,17 +1283,31 @@ function navSaved(before, path) {                   // 名前を付けて保存�
 }
 
 async function openPath(path, restore) {
+  // 同じファイルを、別のウィンドウで開いていれば、先に知らせる（両方で編集して、片方の変更を上書きしないように）
+  let readonlyOpen = false;
+  const ew = await api.open_elsewhere(path);
+  if (ew.elsewhere) {
+    const i = await ask('このファイルは、別のウィンドウで開かれています',
+      `「${baseName(path)}」は、別の Handy Markdown Editor のウィンドウで、${ew.since.replace('T', ' ')} から開かれています。\n両方で編集すると、先に保存した内容を、あとの保存で上書きするおそれがあります（保存のときは、確認が出ます）。\n\nどうしますか？`,
+      [{ label: '読み取り専用で開く', primary: true }, { label: 'このまま開く' }, { label: 'キャンセル' }]);
+    if (i === 2) return false;
+    readonlyOpen = i === 0;
+  }
   if (!await confirmDiscard()) return false;
+  const prevPath = doc.path;
   navSaveScroll();                         // 離れる文書の、読んでいた位置を覚える
   const r = await api.read_file(path);
   if (r.error) { showMsg(r.error); return 'error'; }
   showMsg('');
   const d = r.doc;
-  Object.assign(doc, { path, encoding: d.encoding, newline: d.newline, stamp: d.stamp, readonly: d.readonly });
+  Object.assign(doc, { path, encoding: d.encoding, newline: d.newline, stamp: d.stamp, readonly: d.readonly || readonlyOpen });
+  if (prevPath && prevPath.toLowerCase() !== path.toLowerCase()) api.release_open(prevPath);
+  if (!readonlyOpen) api.claim_open(path);                // 読み取り専用で開いたものは、「開いている」印を置かない
   if (!nav.busy) navPush(path);
   loadIntoEditor(d.text);
   if (restore) setTimeout(() => cm.scrollTo(restore.left, restore.top), 400);   // プレビューの描き直し（先頭へ戻す）が済んでから、前の位置へ
   if (d.warning) status(d.warning, true, 0);
+  else if (readonlyOpen) status('別のウィンドウで開かれているため、読み取り専用で開きました', true, 10000);
   else if (d.mixed_newlines) status(`改行が混在していたため、保存すると ${d.newline} にそろいます`, true, 8000);
   else status('');
   if (!folder || !path.toLowerCase().startsWith(folder.toLowerCase() + '\\')) await loadFolder(dirName(path));
@@ -1284,6 +1316,7 @@ async function openPath(path, restore) {
 }
 
 function resetToBlank() {             // 空の「無題」にする（保存の確認は、呼ぶ側で済ませておく）
+  if (doc.path) api.release_open(doc.path);
   navSaveScroll(); nav.detached = nav.idx >= 0; navUpdate();         // 「無題」は履歴に入れず、「戻る」で直前の文書へ戻れるようにする
   Object.assign(doc, { path: null, encoding: cfg.default_encoding, newline: cfg.default_newline, stamp: null, readonly: false });
   loadIntoEditor(''); status('');
@@ -1301,6 +1334,7 @@ async function saveTo(path, stamp) {
     const before = doc.path;
     doc.path = path; doc.stamp = r.stamp; cm.markClean(); doc.metaDirty = false;
     navSaved(before, path);
+    if (!doc.readonly) { api.claim_open(path); if (before && before.toLowerCase() !== path.toLowerCase()) api.release_open(before); }
     dropDrafts([before, path, null]);     // 保存した文書（と、保存前の「無題」）の下書きは、もう要らない
     updateDirty(); status('保存しました ' + new Date().toLocaleTimeString(), false, 4000);
     if (!folder || !path.toLowerCase().startsWith(folder.toLowerCase() + '\\')) await loadFolder(dirName(path));
@@ -1452,12 +1486,19 @@ function fileItem(rel, label, showDir, indent) {
   div.textContent = label;
   const i = rel.lastIndexOf('/');
   if (showDir && i >= 0) { const s = document.createElement('span'); s.className = 'dir'; s.textContent = rel.slice(0, i); div.appendChild(s); }
-  div.onclick = () => openPath(full);
+  div.onclick = e => (e.ctrlKey || e.metaKey) ? openInNewWindow(full) : openPath(full);          // Ctrl+クリック: 新しいウィンドウで開く
+  div.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });          // 中クリックの、自動スクロールを止める
+  div.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); openInNewWindow(full); } });
+  div.addEventListener('contextmenu', e => {
+    e.preventDefault(); e.stopPropagation();
+    showCtx(e.clientX, e.clientY, [{ label: '開く', run: () => openPath(full) }, { label: '新しいウィンドウで開く', key: 'Ctrl+クリック', run: () => openInNewWindow(full) }]);
+  });
   return div;
 }
 $('treeOpen').onclick = () => { for (const p of treeDirPaths(files)) tree.open.set(p, true); renderList(); };
 $('treeClose').onclick = () => { for (const p of treeDirPaths(files)) tree.open.set(p, false); renderList(); };
 function renderList() {
+  if (bodyOn()) { renderBodyResults(); return; }
   const q = $('filter').value.trim().toLowerCase();
   const shown = files.filter(f => f.toLowerCase().includes(q));
   $('count').textContent = folder ? `${shown.length} / ${files.length} 件${listTruncated ? '（途中までです）' : ''}` : '';
@@ -2053,6 +2094,89 @@ function askSnippetFields(sn) {
     }));
   });
 }
+// ============================================================ フォルダー全体の検索（本文）
+// 「本文を探す」を入れて、絞り込み欄に探す語を入れると、フォルダーの中のすべての Markdown ファイルの本文を探し、
+// 一致した行を、ファイルごとの一覧に出す。行を押すと、そのファイルを開いて、その場所へ移る。探すのは Python（foldersearch.py）。
+const bsearch = { seq: 0, timer: null, data: null, opts: null, folder: null };
+const bodyOn = () => $('bodySearch').checked;
+const bodyOpts = () => ({ q: $('filter').value.trim(), cs: $('bsCase').checked, re: $('bsRe').checked });
+function scheduleBodySearch(delay) { clearTimeout(bsearch.timer); bsearch.timer = setTimeout(runBodySearch, delay === undefined ? 350 : delay); }
+async function runBodySearch() {
+  const o = bodyOpts(), seq = ++bsearch.seq;
+  bsearch.folder = folder;
+  if (!folder || !o.q) { bsearch.data = null; bsearch.opts = o; renderList(); return; }
+  $('count').textContent = '探しています…'; $('count').style.color = '';
+  let r;
+  try { r = await api.search_folder(folder, o.q, o.cs, o.re, (isDirty() && doc.path) ? { [doc.path]: cm.getValue() } : null); } catch (e) { r = { error: String(e), results: [] }; }
+  if (seq !== bsearch.seq) return;                      // もっと新しい検索がある
+  bsearch.data = r; bsearch.opts = o;
+  renderList();
+}
+function markedSnippet(h) {
+  const frag = document.createDocumentFragment();
+  frag.append(h.text.slice(0, h.s));
+  const m = document.createElement('mark'); m.textContent = h.text.slice(h.s, h.e); frag.append(m);
+  frag.append(h.text.slice(h.e));
+  return frag;
+}
+const SHOW_HITS = 8;                                    // 1ファイルで、一覧に出す一致の数（残りは「ほか n 件」）
+function renderBodyResults() {
+  const list = $('list'); list.textContent = '';
+  $('treeBtns').hidden = true;
+  if (bsearch.folder !== folder) { scheduleBodySearch(0); }
+  const d = bsearch.data, o = bodyOpts();
+  const c = $('count'); c.style.color = ''; c.title = '';
+  if (!folder) { c.textContent = ''; return; }
+  if (!o.q) { c.textContent = '探す語を入力してください（本文を探します）'; return; }
+  if (!d) { c.textContent = '探しています…'; return; }
+  if (d.error) { c.textContent = d.error; c.style.color = '#cf222e'; return; }
+  c.textContent = d.total ? `${d.files} ファイル / ${d.total} 行が一致` : '一致する行は、見つかりませんでした';
+  if (d.truncated) { c.textContent += '（途中まで）'; c.title = d.reason; c.style.color = '#cf222e'; }
+  else if (d.skipped) { c.title = `読めなかった・大きすぎるファイルが ${d.skipped} 件あります（探していません）`; }
+  for (const f of d.results) {
+    const head = document.createElement('div'); head.className = 'shead'; head.title = f.rel;
+    head.append(f.rel.includes('/') ? f.rel : f.rel);
+    const cnt = document.createElement('span'); cnt.className = 'scnt'; cnt.textContent = f.count + ' 行'; head.appendChild(cnt);
+    head.onclick = () => openHit(f.rel, null);
+    list.appendChild(head);
+    for (const h of f.hits.slice(0, SHOW_HITS)) {
+      const row = document.createElement('div'); row.className = 'shit';
+      const ln = document.createElement('span'); ln.className = 'sln'; ln.textContent = (h.line + 1);
+      const tx = document.createElement('span'); tx.appendChild(markedSnippet(h));
+      row.append(ln, tx);
+      row.onclick = () => openHit(f.rel, h);
+      list.appendChild(row);
+    }
+    if (f.count > Math.min(SHOW_HITS, f.hits.length)) {
+      const more = document.createElement('div'); more.className = 'smore';
+      more.textContent = `…ほか ${f.count - Math.min(SHOW_HITS, f.hits.length)} 行（ファイルを開いて、探せます）`;
+      more.onclick = () => openHit(f.rel, null);
+      list.appendChild(more);
+    }
+  }
+}
+function initBodySearch() {
+  const sync = () => {
+    $('bodyOpts').hidden = !bodyOn();
+    $('filter').placeholder = bodyOn() ? '🔍 本文を探す語' : '🔍 ファイル名で絞り込み';
+    if (bodyOn()) scheduleBodySearch(0); else { bsearch.seq++; renderList(); }
+  };
+  $('bodySearch').onchange = sync;
+  $('bsCase').onchange = () => scheduleBodySearch(0);
+  $('bsRe').onchange = () => scheduleBodySearch(0);
+  $('filter').addEventListener('keydown', e => { if (e.key === 'Enter' && bodyOn()) { e.preventDefault(); scheduleBodySearch(0); } });
+}
+// 結果の行を開く。ファイルを開いて、その行の、一致した文字を選ぶ。line が無ければ、ファイルを開くだけ（保存していない変更があれば、これまでどおり確認する）
+async function openHit(rel, hit) {
+  const full = folder + '\\' + rel.replace(/\//g, '\\');
+  if (!doc.path || doc.path.toLowerCase() !== full.toLowerCase()) { if (await openPath(full) === false) return; }
+  if (!hit) return;
+  const line = Math.min(hit.line, cm.lineCount() - 1);
+  const text = cm.getLine(line);
+  cm.focus();
+  cm.setSelection({ line, ch: Math.min(hit.col, text.length) }, { line, ch: Math.min(hit.col + hit.len, text.length) });
+  cm.scrollIntoView({ line, ch: 0 }, 140);
+}
 // ============================================================ 検査（lint）
 // 文書の検査は Python（lint.py）。数式と図の誤りは、描いた結果（プレビューの中の印）から集める。
 const lint = { gen: -1, rules: [], issues: [], dom: [], seq: 0, timer: null, domTimer: null, stale: false, skipped: false, error: '' };
@@ -2431,6 +2555,80 @@ function setupEditBar() {
   }));
 }
 
+// ============================================================ HTML ファイルへの書き出し
+// いま表示している文書を、1つで完結する HTML ファイル（ネットにつながらなくても、同じ見た目で開ける）に書き出す。
+// 画面に描いた結果をそのまま使う: Mermaid・Vega-Lite は SVG、数式は KaTeX の HTML（スタイルとフォントも入れる）、画像は埋め込み済みのもの。
+// 配色は、明るい配色（受け取る人の環境で、読めるようにするため）。スクリプトは入れない。
+let exportingHtml = false;
+const EXPORT_ROOT = '#preview';
+async function settleRender() {                           // 数式・図・グラフを描き終えるまで待つ（描けなかったものは、待たない）
+  let p;                                                  // プレビューの描画（数式・図・グラフ）の完了を、明示的に待つ。続けて描き直されたら、その分も待つ
+  do { p = previewSettled; await p; } while (p !== previewSettled);
+  // 念のため、画面の状態も見る（描き終わっていない数式・図・グラフのもとの記述が残っていないか）。描けずに、エラーの枠に入ったものは、待たない
+  const pending = () => [...document.querySelectorAll(
+    EXPORT_ROOT + ' .math:not(.typeset), ' + EXPORT_ROOT + ' pre.mermaid-src, ' + EXPORT_ROOT + ' pre > code.language-vega-lite, ' + EXPORT_ROOT + ' pre > code.language-vegalite')].filter(e => !e.closest('.diagram-error')).length;
+  for (let i = 0; i < 100 && pending(); i++) await new Promise(r => setTimeout(r, 200));
+}
+// アプリ自身のスタイルから、本文（EXPORT_ROOT の中）に効いているものを集める。暗い配色・印刷用（@media）は含めない
+function collectExportCss() {
+  const out = [];
+  for (const sheet of document.styleSheets) {
+    let rules; try { rules = sheet.cssRules; } catch (e) { continue; }
+    for (const r of rules) {
+      if (r.type !== CSSRule.STYLE_RULE) continue;
+      const sel = r.selectorText || '';
+      if (sel === ':root' || sel.includes(EXPORT_ROOT)) out.push(r.cssText.split(EXPORT_ROOT).join('.md-body'));
+    }
+  }
+  return out.join('\n');
+}
+const escHtml = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+async function buildExportHtml(title) {
+  const clone = document.querySelector(EXPORT_ROOT).cloneNode(true), warnings = [];
+  clone.querySelectorAll('mark.find-hit').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));      // 検索のハイライトは、入れない
+  clone.querySelectorAll('[data-line]').forEach(e => e.removeAttribute('data-line'));
+  clone.querySelectorAll('[data-src]').forEach(e => e.removeAttribute('data-src'));
+  clone.querySelectorAll('.diagram').forEach(e => { e.style.minHeight = ''; if (!e.getAttribute('style')) e.removeAttribute('style'); });
+  if (clone.querySelector('.diagram-error, .math-error')) warnings.push('描けなかった図・グラフ・数式があります（エラーの表示のまま入ります）');
+  clone.querySelectorAll('a[href]').forEach(a => { if (/^https?:/i.test(a.getAttribute('href'))) { a.target = '_blank'; a.rel = 'noopener noreferrer'; } });
+  const lost = [...clone.querySelectorAll('img')].map(i => i.getAttribute('src') || '').filter(s => s && !/^(data:|https?:)/i.test(s));
+  if (lost.length) warnings.push(`画像を埋め込めませんでした（相対パスのまま）: ${lost.slice(0, 3).join('、')}${lost.length > 3 ? ' ほか' : ''}`);
+  const katexCss = clone.querySelector('.katex') ? (await api.get_katex()).css : '';
+  const css = collectExportCss();
+  const html = '<!doctype html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+    + '<meta name="generator" content="Handy Markdown Editor v__APP_VERSION__">\n<title>' + escHtml(title) + '</title>\n<style>\n'
+    + 'html { background: var(--bg); }\nbody { margin: 0; background: var(--bg); color: var(--fg); font: var(--body-size, 14px)/1.7 var(--body-font, "Yu Gothic UI", "Segoe UI", sans-serif); }\n'
+    + '.md-body { max-width: 960px; margin: 0 auto; padding: 28px 36px 60px; box-sizing: border-box; }\n'
+    + '@media print { body { background: #fff; } .md-body { max-width: none; padding: 0; } }\n'
+    + css + '\n' + katexCss + '\n</style>\n</head>\n<body>\n<article class="md-body">\n' + clone.innerHTML + '\n</article>\n</body>\n</html>\n';
+  return { html, warnings };
+}
+async function exportHtml() {
+  if (exportingHtml) return;
+  if (!cm.getValue().trim()) { status('書き出す内容がありません', true, 4000); return; }
+  exportingHtml = true;
+  try {
+    await updatePreview();                                // いまの内容で、プレビューを作り直してから書き出す
+    await settleRender();
+    const restore = await printBeforeDiagrams();          // 暗い配色の図を、明るい配色に描き直す（印刷と同じ）
+    let built;
+    try { built = await buildExportHtml((document.querySelector('#preview h1') || {}).textContent || (doc.path ? baseName(doc.path).replace(/\.[^.]*$/, '') : '無題')); } finally { if (restore) await restore(); }
+    const path = await api.pick_html_path((doc.path ? baseName(doc.path).replace(/\.[^.]*$/, '') : '無題') + '.html', doc.path ? dirName(doc.path) : folder);
+    if (!path) return;
+    const r = await api.save_html(path, built.html);
+    if (r.error) { m => status(m, true, 6000)(r.error); return; }
+    const warn = built.warnings.length ? '\n\n※ ' + built.warnings.join('\n※ ') : '';
+    const i = await ask('HTML に書き出しました', `${r.path}\n（${Math.round(r.bytes / 1024).toLocaleString()} KB。1つのファイルで、ネットにつながらなくても開けます）${warn}`,
+      [{ label: 'ブラウザーで開く', primary: true }, { label: '閉じる' }]);
+    if (i === 0) { const o = await api.open_exported_html(r.path); if (o.error) m => status(m, true, 6000)(o.error); }
+  } finally { exportingHtml = false; }
+}
+// ---- 新しいウィンドウ（別のプロセス）。複数のウィンドウを使うための入口: 一覧・リンクの Ctrl+クリック、中クリック、右クリック、Ctrl+Shift+N
+async function openInNewWindow(path) {
+  const r = await api.open_in_new_window(path || null);
+  if (r && r.error) status(r.error, true, 6000); else status('新しいウィンドウを開きました', false, 2500);
+}
+
 // ---- 右クリックメニュー
 function hideCtx() { $('ctx').hidden = true; }
 function showCtx(x, y, items) {
@@ -2574,6 +2772,7 @@ window.addEventListener('pywebviewready', async () => {
   setView(prefs.view || 'triple');
   applyDocMeta(); updateDirty(); updateCounters(); updatePreview();
   initLint();
+  initBodySearch();
   loadSnippets();
   $('fSnip').addEventListener('mousedown', e => e.preventDefault());                // 編集欄から、選択を外さない
   $('fSnip').onclick = openSnippetMenu;
@@ -2612,11 +2811,11 @@ window.addEventListener('resize', hideCtx);
 
 // ---- ボタン・入力
 $('bNew').onclick = newDoc; $('bFolder').onclick = chooseFolder; $('bOpen').onclick = chooseFile;
-$('bPrint').onclick = openPrint; $('bSaveAs').onclick = saveAs;
+$('bPrint').onclick = openPrint; $('bHtml').onclick = exportHtml; $('bSaveAs').onclick = saveAs;
 $('bReload').onclick = async () => { await syncList(true); await checkExternal(); };
 $('vTriple').onclick = () => setView('triple'); $('vSplit').onclick = () => setView('split');
 $('vEdit').onclick = () => setView('edit'); $('vPrev').onclick = () => setView('preview');
-$('filter').oninput = renderList;
+$('filter').oninput = () => { if (bodyOn()) scheduleBodySearch(); else renderList(); };
 $('selEnc').onchange = () => { doc.encoding = $('selEnc').value; doc.metaDirty = true; updateDirty(); };
 $('selNl').onchange = () => { doc.newline = $('selNl').value; doc.metaDirty = true; updateDirty(); };
 $('zOut').onclick = () => zoomBy(1 / 1.1); $('zIn').onclick = () => zoomBy(1.1);
@@ -2635,7 +2834,7 @@ $('preview').addEventListener('click', async e => {
   else if (/^(https?:|mailto:)/i.test(href)) api.open_external(href);
   else {
     const p = await api.resolve_link(doc.path, href);
-    if (p) { await openPath(p); return; }
+    if (p) { if (e.ctrlKey || e.metaKey) await openInNewWindow(p); else await openPath(p); return; }          // Ctrl+クリック: 新しいウィンドウで開く
     // Markdown 以外（PDF・Word など）は、関連づけられたアプリで開く
     const r = await api.open_local(doc.path, href);
     if (r && r.error) status(r.error, true);
@@ -2678,6 +2877,7 @@ document.addEventListener('keydown', e => {
   else if (c && !e.shiftKey && k === 's') { e.preventDefault(); saveClick(); }
   else if (c && e.shiftKey && k === 's') { e.preventDefault(); saveAs(); }
   else if (c && !e.shiftKey && k === 'n') { e.preventDefault(); newDoc(); }
+  else if (c && e.shiftKey && k === 'n') { e.preventDefault(); openInNewWindow(null); }          // 新しいウィンドウ（空）
   else if (c && !e.shiftKey && k === 'o') { e.preventDefault(); chooseFile(); }
   else if (c && e.shiftKey && k === 'o') { e.preventDefault(); chooseFolder(); }
   else if (c && k === '\\') { e.preventDefault(); toggleSide(); }

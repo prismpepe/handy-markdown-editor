@@ -30,7 +30,10 @@ import filedrop
 import highlight
 import imgembed
 import lint
+import foldersearch
 import mathtex
+import multiwin
+import openlock
 import pasteimg
 import tabular
 import tableedit
@@ -44,7 +47,7 @@ import snippets
 from sanitize import sanitize
 
 APP_NAME = "Handy Markdown Editor"
-APP_VERSION = "1.18.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.19.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -94,6 +97,9 @@ def data_dir():
                         "MarkdownEditor")
 
 
+WINDOW_MARK = "Handy Markdown Editor"            # 自分のウィンドウを見分けるための、タイトルの一部（複数のウィンドウを、ずらして開くため）
+
+
 def settings_path():
     return os.path.join(data_dir(), "settings.json")
 
@@ -106,6 +112,10 @@ def drafts_root():
     return os.path.join(data_dir(), "drafts")
 
 
+def locks_root():
+    return os.path.join(data_dir(), "locks")
+
+
 def load_settings():
     try:
         with open(settings_path(), encoding="utf-8") as f:
@@ -115,12 +125,7 @@ def load_settings():
 
 
 def save_settings(data):
-    try:
-        os.makedirs(data_dir(), exist_ok=True)
-        with open(settings_path(), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-    except OSError:
-        pass
+    multiwin.write_json_atomic(settings_path(), data)      # 複数のウィンドウが、同時に書いても、壊れない（一時ファイル→置き換え）
 
 
 def is_markdown(path):
@@ -259,10 +264,12 @@ class Api:
         self._persist_location = not (start_path and os.path.isfile(start_path))
         self._keeper = None
         self._draft_lock = threading.Lock()
+        self._claims = {}                                   # このウィンドウが開いている印を置いたファイル: 正規化したパス → パス
         self._slot = "untitled" + format(int(time.time() * 1000), "x")      # この起動の「無題」の下書きの名前
 
     # --- 起動 ---------------------------------------------------------------
     def get_initial(self):
+        openlock.sweep(locks_root())                         # 動いていないウィンドウの印を、片づける
         settings = load_settings()
         start = self._start_path
         result = {"folder": None, "file": None, "error": None,
@@ -447,6 +454,29 @@ class Api:
             self._persist_location = True
         return path
 
+    @staticmethod
+    def _read_for_search(path):
+        """検索のための読み込み。文字コードを判定できないファイルは、探さない（None）。"""
+        doc = filemodel.read_document(path)
+        return None if doc.get("readonly") else doc["text"]
+
+    def search_folder(self, folder, query, case=False, regex=False, overrides=None):
+        """フォルダーの中の Markdown ファイルの本文を探し、一致した行を返す（foldersearch.py）。
+        overrides: {パス: 本文}（保存していない編集中の文書の内容）。新しい検索が始まったら、前の検索は、そこで取りやめる。"""
+        if not (isinstance(folder, str) and os.path.isdir(folder) and isinstance(query, str)):
+            return {"results": [], "total": 0, "files": 0, "scanned": 0, "skipped": 0, "truncated": False, "reason": "",
+                    "error": "フォルダーが見つかりません"}
+        ov = {}
+        if isinstance(overrides, dict):
+            for k, v in list(overrides.items())[:5]:
+                if isinstance(k, str) and isinstance(v, str) and len(v) <= foldersearch.MAX_BYTES:
+                    ov[os.path.normcase(os.path.abspath(k))] = v
+        self._search_id = getattr(self, "_search_id", 0) + 1
+        mine = self._search_id
+        files, _ = scan_markdown(folder)
+        return foldersearch.search(folder, files, query, bool(case), bool(regex), read=self._read_for_search,
+                                   overrides=ov, cancelled=lambda: self._search_id != mine)
+
     def list_files(self, folder):
         if not os.path.isdir(folder):
             return {"error": f"フォルダーが見つかりません: {folder}", "files": []}
@@ -534,6 +564,35 @@ class Api:
             return {"error": f"開けません: {e}"}
         return {"error": None, "folder": folder}
 
+    # --- 同じファイルを、別のウィンドウで開いていないかの見張り（openlock.py）------------
+    @staticmethod
+    def _claim_key(path):
+        return os.path.normcase(os.path.abspath(path))
+
+    def open_elsewhere(self, path):
+        """このファイルを、別のエディタのウィンドウが開いているか（動いているウィンドウだけ）。"""
+        if not isinstance(path, str) or not path:
+            return {"elsewhere": False}
+        h = openlock.holder(locks_root(), path)
+        return {"elsewhere": bool(h), "since": h["since"] if h else ""}
+
+    def claim_open(self, path):
+        """このウィンドウが、このファイルを開いた印を置く。"""
+        if isinstance(path, str) and path and openlock.claim(locks_root(), path):
+            self._claims[self._claim_key(path)] = path
+        return True
+
+    def release_open(self, path):
+        if isinstance(path, str) and path:
+            openlock.release(locks_root(), path)
+            self._claims.pop(self._claim_key(path), None)
+        return True
+
+    def release_all_claims(self):
+        for p in list(self._claims.values()):
+            openlock.release(locks_root(), p)
+        self._claims.clear()
+
     # --- 表の編集支援（整形・列と行の操作・Tab での移動。tableedit.py）---------------
     @staticmethod
     def _table_args(text, line, ch):
@@ -554,6 +613,18 @@ class Api:
         if not self._table_args(text, line, ch):
             return {"ok": False, "not_table": True}
         return tableedit.tab(text, line, ch, bool(forward))
+
+    def open_in_new_window(self, path=None):
+        """新しいウィンドウ（別のプロセス）で、Markdown ファイルかフォルダーを開く。path が無ければ、空のウィンドウ。
+        開けるのは、Markdown ファイルかフォルダーだけ（画面から、任意の実行ファイルなどを起動させない）。"""
+        args = []
+        if path:
+            if not isinstance(path, str) or not (os.path.isdir(path) or (os.path.isfile(path) and is_markdown(path))):
+                return {"error": "新しいウィンドウでは開けません: %s" % path}
+            args = [os.path.abspath(path)]
+        if not multiwin.launch_self(args):
+            return {"error": "新しいウィンドウを開けませんでした"}
+        return {"error": None}
 
     # --- スニペット（文中に挿入する定型文。snippets.py）-------------------------
     def snippet_folder(self):
@@ -652,7 +723,8 @@ class Api:
         return {"ok": True, "key": key}
 
     def list_drafts(self):
-        return drafts.list_drafts(drafts_root())
+        """前回の残り（書いたウィンドウが、もう動いていない下書き）。別のウィンドウで編集中の下書きは、出さない。"""
+        return drafts.list_drafts(drafts_root(), skip_live=True)
 
     def get_draft(self, key):
         return drafts.read_draft(drafts_root(), key)
@@ -865,6 +937,34 @@ class Api:
         return self._print_call(lambda: printing.send_to_printer(
             self._window, opts, printing.parse_ranges(ranges)) and None)
 
+    def pick_html_path(self, name, initial_dir_=None):
+        return dialogs.pick_save(self._initial_dir(initial_dir_), name, "html")
+
+    MAX_HTML = 200 * 1024 * 1024         # 書き出す HTML の大きさの上限
+
+    def save_html(self, path, html):
+        """書き出した HTML を、ファイルに書く。拡張子は .html か .htm のどちらか（無ければ .html を足す）。"""
+        if not (isinstance(path, str) and path and isinstance(html, str)):
+            return {"error": "保存先か内容が正しくありません"}
+        if not path.lower().endswith((".html", ".htm")):
+            path += ".html"
+        if len(html) > self.MAX_HTML:
+            return {"error": "大きすぎて書き出せません（200MB まで）"}
+        if not multiwin.write_text_atomic(path, html):
+            return {"error": "書き込めませんでした: " + path}
+        self._exported_html = os.path.normcase(os.path.abspath(path))
+        return {"error": None, "path": path, "bytes": len(html.encode("utf-8"))}
+
+    def open_exported_html(self, path):
+        """いま書き出した HTML を、ふだん使っているブラウザーで開く（書き出したファイルだけ）。"""
+        if not (isinstance(path, str) and os.path.normcase(os.path.abspath(path)) == getattr(self, "_exported_html", None)):
+            return {"error": "開けません"}
+        try:
+            os.startfile(path)
+        except OSError as e:
+            return {"error": "開けません: " + str(e)}
+        return {"error": None}
+
     def pick_pdf_path(self, name, initial_dir=None):
         return dialogs.pick_save(self._initial_dir(initial_dir), name, "pdf")
 
@@ -907,11 +1007,13 @@ class Api:
         """画面で保存・破棄が済んだあとに閉じる。"""
         self._closing = True
         self._dirty = False
+        self.release_all_claims()
         self._window.destroy()
 
     def on_closing(self):
         """未保存があれば閉じずに、画面へ確認を出させる（False で閉じるのを止める）。"""
         if self._closing or not self._dirty:
+            self.release_all_claims()
             if self._keeper:
                 self._keeper.save()          # 閉じることが決まったときだけ、位置と大きさを残す
             return True
@@ -1002,10 +1104,12 @@ class WindowKeeper:
     どこかで失敗しても、保存・復元をやめるだけで、アプリの動作には影響しない。
     """
 
-    def __init__(self, window, width, height, maximize):
+    def __init__(self, window, width, height, maximize, offset=(0, 0), placed=None):
         self.window = window
         self.width, self.height = width, height
         self.maximize = maximize
+        self.offset = offset            # 他のウィンドウと重ならないよう、保存した位置からずらした分
+        self.placed = placed            # ずらしたあとの、開いた位置 (x, y)
         self.ratio_w = self.ratio_h = 1.0
         self.measured = False
 
@@ -1050,6 +1154,9 @@ class WindowKeeper:
             if not b:
                 return
             x, y, w, h, maximized = b
+            # 開いたときの位置から動かしていなければ、ずらす前の位置を保存する（開くたびに、右下へ流れていかないように）
+            if self.placed and abs(x - self.placed[0]) <= 2 and abs(y - self.placed[1]) <= 2:
+                x, y = x - self.offset[0], y - self.offset[1]
             settings = load_settings()
             settings["window"] = {
                 "x": int(x), "y": int(y),
@@ -1078,11 +1185,18 @@ def main():
     place = {}
     if uiprefs.place_visible(geo, uiprefs.virtual_screen()):
         place = {"x": geo["x"], "y": geo["y"]}
+    # すでに同じアプリのウィンドウがあれば、真上に重ならないよう、右下へずらして開く
+    offset = (0, 0)
+    if place and not geo.get("maximized"):
+        x, y = multiwin.cascade(place["x"], place["y"], multiwin.other_windows(WINDOW_MARK))
+        if (x, y) != (place["x"], place["y"]) and uiprefs.place_visible(dict(geo, x=x, y=y), uiprefs.virtual_screen()):
+            offset = (x - place["x"], y - place["y"])
+            place = {"x": x, "y": y}
     window = webview.create_window(
         APP_TITLE, html=build_html(), js_api=api,
         width=width, height=height, min_size=(640, 400), **place)
     api._window = window
-    api._keeper = WindowKeeper(window, width, height, bool(geo.get("maximized")))
+    api._keeper = WindowKeeper(window, width, height, bool(geo.get("maximized")), offset, (place["x"], place["y"]) if place else None)
     window.events.loaded += api._keeper.on_loaded
     window.events.loaded += lambda: _install_drop(window)
     window.events.closing += api.on_closing

@@ -144,21 +144,23 @@ def test_api_save_uses_configured_keep_and_prunes_at_once(api, tmp_path):
 
 
 def test_api_drafts_roundtrip(api, tmp_path):
+    root = mdeditor.drafts_root()
     r = api.save_draft(None, "無題の内容", "UTF-8", "CRLF")
     assert r["ok"] and r["key"].startswith("untitled")
     r2 = api.save_draft(str(tmp_path / "f.md"), "ファイルの内容", "Shift-JIS (CP932)", "LF")
     assert r2["ok"]
-    items = api.list_drafts()
+    items = D.list_drafts(root)                                  # 置き場にある、全部の下書き
     assert {i["preview"] for i in items} == {"無題の内容", "ファイルの内容"}
     body = api.get_draft(r2["key"])
     assert body["encoding"] == "Shift-JIS (CP932)" and body["newline"] == "LF"
+    assert api.list_drafts() == []                               # 自分（動いているウィンドウ）が書いたものは、「前回の残り」として出さない
     assert api.save_draft(None, 5)["ok"] is False
     assert api.save_draft(123, "x")["ok"] is False
     api.discard_drafts_for([None])
-    assert [i["preview"] for i in api.list_drafts()] == ["ファイルの内容"]
-    api.discard_draft("../evil")                               # 名前に使えないものは、何もしない
+    assert [i["preview"] for i in D.list_drafts(root)] == ["ファイルの内容"]
+    api.discard_draft("../evil")                                 # 名前に使えないものは、何もしない
     api.discard_draft(r2["key"])
-    assert api.list_drafts() == []
+    assert D.list_drafts(root) == []
 
 
 def test_api_draft_does_not_touch_the_document(api, tmp_path):
@@ -167,3 +169,39 @@ def test_api_draft_does_not_touch_the_document(api, tmp_path):
     api.save_draft(str(p), "書き換え中", "UTF-8", "LF")
     assert p.read_text(encoding="utf-8") == "元の内容"          # 文書のファイルは、下書きでは書き換えない
     assert api.save_draft(str(p), "   ")["key"] is None
+
+
+DEAD = [2_000_000_000, 12345]            # 動いていないプロセス（存在しない pid）
+
+
+def test_same_document_in_two_windows_has_separate_drafts(tmp_path):
+    root = str(tmp_path)
+    D.save_draft(root, "a.md", "窓1の内容", slot="untitledaa")
+    D.save_draft(root, "a.md", "窓2の内容", slot="untitledbb")
+    assert len(D.list_drafts(root)) == 2                                      # 取り合わない
+    D.delete_for(root, "a.md", slot="untitledaa")                              # 窓1が保存したら、窓1の下書きだけ消える
+    assert [d["preview"] for d in D.list_drafts(root)] == ["窓2の内容"]
+
+
+def test_drafts_of_live_windows_are_not_offered_for_restore(tmp_path):
+    import subprocess
+    import multiwin
+    root = str(tmp_path)
+    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        D.save_draft(root, "live.md", "生きているウィンドウの下書き", slot="untitledlive", owner=list(multiwin.process_stamp(p.pid)))
+        D.save_draft(root, "dead.md", "異常終了した下書き", slot="untitleddead", owner=DEAD)
+        D.save_draft(root, "mine.md", "自分の下書き", slot="untitledmine")
+        assert {d["preview"] for d in D.list_drafts(root)} == {"生きているウィンドウの下書き", "異常終了した下書き", "自分の下書き"}
+        assert [d["preview"] for d in D.list_drafts(root, skip_live=True)] == ["異常終了した下書き"]     # 残りものだけ
+    finally:
+        p.kill()
+        p.wait()
+    assert {d["preview"] for d in D.list_drafts(root, skip_live=True)} == {"生きているウィンドウの下書き", "異常終了した下書き"}   # 終了したら、残りもの
+
+
+def test_old_drafts_without_owner_are_offered(tmp_path):
+    import json
+    root = str(tmp_path)
+    (tmp_path / "x.json").write_text(json.dumps({"path": None, "text": "旧い版の下書き", "saved_at": "2026-01-01T00:00:00"}), encoding="utf-8")
+    assert [d["preview"] for d in D.list_drafts(root, skip_live=True)] == ["旧い版の下書き"]
