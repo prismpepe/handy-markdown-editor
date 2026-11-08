@@ -111,9 +111,12 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #fmt select { padding: 3px 4px; }
 #fmt #fSnip { min-width: 0; padding: 3px 3px; }      /* 3画面の編集バーに、段を増やさず収めるため、細くする */
 /* ボタンは、用途ごとのグループにまとめ、グループの名前を上に小さく出す。折り返すときは、グループ単位（途中では割れない） */
-#fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; }
+#fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; max-width: 100%; }
 #fmt .glabel { font-size: 10px; line-height: 1; color: var(--muted); padding-left: 2px; white-space: nowrap; user-select: none; }
-#fmt .gbtns { display: flex; align-items: center; flex-wrap: nowrap; gap: 4px; }
+/* グループの中のボタンは、ふだんは折り返さない。ただし、編集欄がグループより狭くなったときは、グループの中で折り返す
+   （折り返さないと、ボタンが編集欄からはみ出して、プレビューの上に重なる） */
+#fmt .gbtns { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+#fmt select { max-width: 100%; }
 #find { padding: 6px 8px; background: var(--side); border-bottom: 1px solid var(--border); }
 #find .frow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 #find .frow + .frow { margin-top: 6px; }

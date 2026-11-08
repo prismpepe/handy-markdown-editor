@@ -113,10 +113,27 @@ def finish():
         split = js("""[...document.querySelectorAll('#fmt .fgroup')].filter(g => {
             const tops = new Set([...g.querySelectorAll('.gbtns > *')].map(e => Math.round(e.getBoundingClientRect().top)));
             return tops.size > 1; }).map(g => g.querySelector('.glabel').textContent)""")
-        check("幅 %d: どのグループも、途中で折り返さない" % width, split, [])
+        if width >= 1400:
+            check("幅 %d: どのグループも、途中で折り返さない" % width, split, [])
+        else:       # 編集欄が、グループより狭いときは、グループの中で折り返す（折り返さずに、はみ出すと、プレビューに重なる）
+            over = js("""(() => { const f = document.getElementById('fmt').getBoundingClientRect();
+                return [...document.querySelectorAll('#fmt button, #fmt select')].filter(e => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > f.right + 1).length; })()""")
+            check("幅 %d: 狭いときは、グループの中で折り返し、部品が編集バーの右端を越えない" % width, over, 0)
         clipped = js("""(() => { const f = document.getElementById('fmt').getBoundingClientRect();
             return [...document.querySelectorAll('#fmt .fgroup')].filter(g => g.getBoundingClientRect().right > f.right + 1 && g.getBoundingClientRect().width <= f.width).length; })()""")
         check("幅 %d: グループが、列の右端からはみ出さない" % width, clipped, 0)
+
+    # --- 編集欄を狭めても、ボタンが、編集欄からはみ出して、プレビューに重ならない
+    for width in (420, 330, 260, 200):
+        js("document.getElementById('editorPane').style.flex = '0 0 %dpx'" % width)
+        time.sleep(.5)
+        over = js("""(() => { const pane = document.getElementById('editorPane').getBoundingClientRect();
+          return [...document.querySelectorAll('#fmt button, #fmt select')].filter(e => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > pane.right + 1)
+            .map(e => (e.id || e.textContent.trim()) + ':' + Math.round(e.getBoundingClientRect().right - pane.right)); })()""")
+        check("編集欄の幅 %dpx: 編集バーの部品が、編集欄の右端を越えない" % width, over, [])
+    check("狭いときは、グループの中で折り返して、段が増える（見切れない）",
+          js("[...document.querySelectorAll('#fmt .fgroup')].every(g => g.getBoundingClientRect().width > 0)"), True)
+    js("document.getElementById('editorPane').style.flex = ''")
 
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
