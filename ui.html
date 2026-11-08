@@ -179,6 +179,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   border-radius: 4px; padding: 2px 6px; font: inherit; }
 .CodeMirror-dialog button { padding: 1px 8px; }
 .cm-searching { background: #ffd33d66; }
+.cm-bodyhit { background: #ffd33d; color: #1f2328 !important; outline: 1px solid #e36209; border-radius: 2px; }
 
 /* プレビュー */
 #preview { font-family: var(--body-font), sans-serif; font-size: var(--body-size); }
@@ -2242,7 +2243,7 @@ function initBodySearch() {
   const sync = () => {
     $('bodyOpts').hidden = !bodyOn();
     $('filter').placeholder = bodyOn() ? '🔍 本文を探す語' : '🔍 ファイル名で絞り込み';
-    if (bodyOn()) scheduleBodySearch(0); else { bsearch.seq++; renderList(); }
+    if (bodyOn()) scheduleBodySearch(0); else { bsearch.seq++; renderList(); clearBodyHit(true); }
   };
   $('bodySearch').onchange = sync;
   $('bsCase').onchange = () => scheduleBodySearch(0);
@@ -2250,14 +2251,24 @@ function initBodySearch() {
   $('filter').addEventListener('keydown', e => { if (e.key === 'Enter' && bodyOn()) { e.preventDefault(); scheduleBodySearch(0); } });
 }
 // 結果の行を開く。ファイルを開いて、その行の、一致した文字を選ぶ。line が無ければ、ファイルを開くだけ（保存していない変更があれば、これまでどおり確認する）
+// 一致した文字には、選択の青とは別に、目立つ黄色の印（cm-bodyhit）を付ける。「本文を探す」を切るか、次の行を開くと消す
+let bodyHitMark = null;
+function clearBodyHit(unselect) {
+  if (!bodyHitMark) return;
+  const r = bodyHitMark.find(); bodyHitMark.clear(); bodyHitMark = null;
+  if (unselect && r && cm.getSelection() === cm.getRange(r.from, r.to)) cm.setCursor(r.from);       // 選びっぱなしの青も、外す
+}
 async function openHit(rel, hit) {
+  clearBodyHit(false);
   const full = folder + '\\' + rel.replace(/\//g, '\\');
   if (!doc.path || doc.path.toLowerCase() !== full.toLowerCase()) { if (await openPath(full) === false) return; }
   if (!hit) return;
   const line = Math.min(hit.line, cm.lineCount() - 1);
   const text = cm.getLine(line);
   cm.focus();
-  cm.setSelection({ line, ch: Math.min(hit.col, text.length) }, { line, ch: Math.min(hit.col + hit.len, text.length) });
+  const from = { line, ch: Math.min(hit.col, text.length) }, to = { line, ch: Math.min(hit.col + hit.len, text.length) };
+  cm.setSelection(from, to);
+  bodyHitMark = cm.markText(from, to, { className: 'cm-bodyhit' });
   cm.scrollIntoView({ line, ch: 0 }, 140);
 }
 // ============================================================ 検査（lint）

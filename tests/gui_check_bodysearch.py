@@ -80,6 +80,13 @@ def drive():
     js("document.querySelectorAll('#list .shit')[2].click()")
     check("ほかのファイル（sub/b.md）の行を押すと、そのファイルが開く", wait("doc.path === %s && cm.getSelection() === '漏水' && cm.getCursor('from').line === 1" % json.dumps(B)), True)
     check("選ばれる範囲は、一致の桁から（行の途中でも）", js("cm.getCursor('from').ch"), 0)
+    check("一致した文字に、目立つ黄色の印が付く（1つだけ。前のファイルの印は残らない）",
+          js("[document.querySelectorAll('.cm-bodyhit').length, document.querySelector('.cm-bodyhit') && document.querySelector('.cm-bodyhit').textContent]"), [1, '漏水'])
+    check("印の色は、黄色（選択の水色ではない）", js("getComputedStyle(document.querySelector('.cm-bodyhit')).backgroundColor"), 'rgb(255, 211, 61)')
+    js("document.getElementById('bodySearch').click()")
+    check("「本文を探す」を切ると、印も選択も消える", wait("document.querySelectorAll('.cm-bodyhit').length === 0 && cm.getSelection() === ''"), True)
+    js("document.getElementById('bodySearch').click()")
+    wait("!document.getElementById('bodyOpts').hidden")
 
     # --- 保存していない編集中の内容を、探す
     js("openPath(%s)" % json.dumps(A))
