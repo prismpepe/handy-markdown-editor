@@ -159,16 +159,16 @@ def prune_backups(backup_root, keep=KEEP_BACKUPS):
         pass
 
 
-def make_backup(path, backup_root):
+def make_backup(path, backup_root, keep=KEEP_BACKUPS):
     folder = backup_folder(backup_root, path)
     os.makedirs(folder, exist_ok=True)
     name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".bak"
     shutil.copy2(path, os.path.join(folder, name))
-    prune_backups(backup_root)
+    prune_backups(backup_root, keep)
 
 
 def write_document(path, text, encoding, newline, expected_stamp=None,
-                   backup_root=None):
+                   backup_root=None, backup_keep=KEEP_BACKUPS):
     """保存して、新しいスタンプを返す。
 
     expected_stamp を渡すと、読み込み後に他で書き換えられていないかを確かめる
@@ -179,7 +179,7 @@ def write_document(path, text, encoding, newline, expected_stamp=None,
     if exists and expected_stamp is not None and stamp_of(path) != list(expected_stamp):
         raise Conflict(path)
     if exists and backup_root:
-        make_backup(path, backup_root)
+        make_backup(path, backup_root, backup_keep)
     folder = os.path.dirname(os.path.abspath(path))
     fd, tmp = tempfile.mkstemp(prefix=".~", suffix=".tmp", dir=folder)
     try:

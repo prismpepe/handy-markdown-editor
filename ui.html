@@ -68,14 +68,23 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   border: 1px solid var(--border); border-radius: 6px; }
 #count { padding: 0 10px 4px; color: var(--muted); font-size: 12px; }
 #list { flex: 1; overflow-y: auto; }
-.dirhead { padding: 6px 10px 2px; margin-top: 4px; font-size: 12px; font-weight: 600;
-  color: var(--muted); word-break: break-all; }
+/* 一覧の階層表示（サブフォルダをアコーディオンで開閉） */
+.dirrow { padding: 4px 10px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fg); display: flex; align-items: baseline; gap: 4px; user-select: none; }
+.dirrow:hover { background: var(--sel); }
+.dirrow .chev { display: inline-block; width: 1em; color: var(--muted); flex: none; }
+.dirrow .dname { word-break: break-all; }
+.dirrow .dcnt { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: auto; padding-left: 6px; flex: none; }
+#treeBtns { display: flex; gap: 6px; padding: 0 10px 4px; }
+#treeBtns[hidden] { display: none; }
+#treeBtns button { font-size: 11px; padding: 0 6px; }
 .item { padding: 4px 10px; cursor: pointer; border-left: 3px solid transparent; word-break: break-all; }
 .item:hover { background: var(--sel); }
 .item.sel { background: var(--sel); border-left-color: var(--accent); font-weight: 600; }
 .item .dir { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
 
 #main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#navbtns { display: flex; gap: 4px; flex: none; }
+#navbtns button { padding: 0 9px; font-size: 12px; line-height: 1.7; }
 #top { padding: 5px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
 #title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #title.dirty::before { content: "● "; color: var(--danger); }
@@ -219,6 +228,24 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 /* 印刷・PDF: 画面の部品を隠し、プレビューの本文だけを紙に流す */
 
 /* フォントの設定ダイアログ */
+/* 自動保存（下書き）: 状態表示欄のボタン、保存の設定、復元のダイアログ */
+#autoBtn { font-size: 12px; padding: 0 8px; border: 1px solid transparent; background: none; color: var(--fg); cursor: pointer; border-radius: 4px; }
+#autoBtn:hover { border-color: var(--accent); } #autoBtn .off { color: var(--muted); }
+#sveil, #rveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+#sveil[hidden], #rveil[hidden] { display: none; }
+#sdlg, #rdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; width: min(600px, 94vw); max-height: 92vh; overflow: auto; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
+#sdlg h3, #rdlg h3 { margin: 0 0 6px; } #sdlg .hint, #rdlg .hint { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+#sdlg .srow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
+#sdlg input[type=number] { width: 5em; font: inherit; padding: 2px 6px; } #sdlg select { font: inherit; padding: 2px 6px; }
+#sdlg .btns, #rdlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
+#rList { border: 1px solid var(--border); border-radius: 6px; max-height: 50vh; overflow: auto; }
+#rList .rrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+#rList .rrow:last-child { border-bottom: 0; }
+#rList .rname { font-weight: 600; word-break: break-all; } #rList .rmeta { color: var(--muted); font-size: 12px; }
+#rList .rprev { grid-column: 1 / -1; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rList .rwarn { grid-column: 1 / -1; color: var(--warn); font-size: 12px; }
+#rList .racts { display: flex; gap: 6px; align-items: center; grid-row: 1 / 3; grid-column: 2; }
 /* 検査（lint）: 状態表示欄のボタン、編集欄の下の一覧、行番号の横の印、ルールのダイアログ */
 #lintBtn { font-size: 12px; padding: 0 8px; border: 1px solid transparent; background: none; color: var(--fg); cursor: pointer; border-radius: 4px; }
 #lintBtn:hover { border-color: var(--accent); }
@@ -229,15 +256,29 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #lintHead b { font-weight: 600; } #lintCount { color: var(--muted); font-size: 12px; flex: 1; }
 #lintHead button { font-size: 12px; padding: 1px 8px; }
 #lintList { overflow: auto; flex: 1; }
-#lintList .lrow { display: grid; grid-template-columns: 1.6em 5.2em 1fr auto; gap: 0 6px; align-items: baseline; padding: 2px 8px; cursor: pointer; border-left: 3px solid transparent; }
+#lintList .lrow { display: grid; grid-template-columns: 1.6em 5.2em 1fr auto auto; gap: 0 6px; align-items: baseline; padding: 2px 8px; cursor: pointer; border-left: 3px solid transparent; }
 #lintList .lrow:hover { background: var(--side); } #lintList .lrow.sel { background: var(--sel); border-left-color: var(--accent); }
 #lintList .lrow .ic.warning { color: var(--warn); } #lintList .lrow .ic.info { color: var(--accent); }
 #lintList .lrow .ln { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 #lintList .lrow .rid { color: var(--muted); font-size: 11px; }
+#lintList .lrow .lfix { font-size: 11px; padding: 0 8px; line-height: 1.5; }
 #lintList .lempty { padding: 10px 12px; color: var(--muted); }
 .lint-gutter { width: 14px; }
 .lint-mark { display: block; width: 9px; height: 9px; margin: 6px 0 0 3px; border-radius: 50%; cursor: pointer; }
 .lint-mark.warning { background: var(--warn); } .lint-mark.info { background: var(--accent); opacity: .75; }
+#fxveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+#fxveil[hidden] { display: none; }
+#fxdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; width: min(760px, 94vw); max-height: 92vh; display: flex; flex-direction: column; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
+#fxdlg h3 { margin: 0 0 6px; } #fxdlg .hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+#fxList { overflow: auto; border: 1px solid var(--border); border-radius: 6px; flex: 1; min-height: 80px; font: 12.5px/1.45 Consolas, "BIZ UDGothic", monospace; }
+#fxList .fr { display: grid; grid-template-columns: 4.5em 1fr; gap: 0 8px; padding: 3px 8px; border-bottom: 1px solid var(--border); }
+#fxList .fr:last-child { border-bottom: 0; } #fxList .fr .fl { color: var(--muted); text-align: right; }
+#fxList .fr .fb, #fxList .fr .fa { white-space: pre-wrap; word-break: break-all; padding: 0 4px; border-radius: 3px; }
+#fxList .fr .fb { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+#fxList .fr .fa { background: color-mix(in srgb, var(--accent) 14%, transparent); margin-top: 2px; }
+#fxList .fr .fk { color: var(--muted); font: 11px "Yu Gothic UI", sans-serif; }
+#fxdlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
 #lveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
 #lveil[hidden] { display: none; }
 #ldlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
@@ -383,10 +424,11 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div id="folder">未選択（「フォルダーを開く」で選びます）</div>
     <input id="filter" type="search" placeholder="🔍 ファイル名で絞り込み">
     <div id="count"></div>
+    <div id="treeBtns" hidden><button id="treeOpen" title="すべてのフォルダを開きます">すべて開く</button><button id="treeClose" title="すべてのフォルダを閉じます">すべて閉じる</button></div>
     <div id="list"></div>
   </aside>
   <div id="main">
-    <div id="top"><span id="title">無題</span></div>
+    <div id="top"><span id="navbtns"><button id="btnBack" title="戻る (Alt+Shift+←)" disabled>◀</button><button id="btnFwd" title="進む (Alt+Shift+→)" disabled>▶</button></span><span id="title">無題</span></div>
     <div id="panes">
       <div id="editorPane">
         <div class="pane-title">編集</div>
@@ -478,6 +520,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
         <div id="lintPanel" hidden>
           <div id="lintHead">
             <b>問題</b><span id="lintCount"></span>
+            <button id="lintFixAll" title="直せる指摘を、まとめて直します（前後を確かめてから）" hidden>すべて直す</button>
             <button id="lintRules" title="検査する規則を選びます">ルール…</button>
             <button id="lintNow" title="いまの内容を検査します">いま検査する</button>
             <button id="lintClose" title="一覧を閉じます">✕</button>
@@ -496,6 +539,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       <span id="chars">0文字</span>
       <span>改行 <select id="selNl"></select></span>
       <span>文字コード <select id="selEnc"></select></span>
+      <button id="autoBtn" title="自動保存（下書き）の設定を開きます">💾 自動保存 …</button>
       <button id="lintBtn" title="Markdown の問題を検査します（一覧を開く・閉じる）">問題 …</button>
       <span id="smsg"></span>
     </div>
@@ -517,6 +561,34 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       </div>
     </div>
     <div class="btns"><span id="mInfo"></span><button id="mCreate" class="primary" disabled>この内容で新規作成</button><button id="mClose">閉じる</button></div>
+  </div>
+</div>
+<div id="sveil" hidden>
+  <div id="sdlg" role="dialog" aria-label="保存の設定">
+    <h3>保存の設定</h3>
+    <p class="hint">自動保存は、編集中の内容を「下書き」として別の場所に書きます。<b>文書のファイルは書き換えません</b>（保存は、これまでどおり、保存ボタンで行います）。異常終了や Windows の再起動のあと、次の起動のときに、復元を提案します。保存したときと、「保存しない」を選んだときは、下書きを消します。</p>
+    <div class="srow"><label><input id="sAuto" type="checkbox"> 編集中の内容を、自動で下書きに保存する</label></div>
+    <div class="srow"><label>保存の間隔: <select id="sInterval"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="300">5分</option><option value="600">10分</option></select></label></div>
+    <p class="hint" style="margin-top:14px">上書き保存の前に、元のファイルの内容を退避します（バックアップ）。退避は、置き場全体（ファイルごとではありません）で、新しいものから次の数だけ残します。</p>
+    <div class="srow"><label>退避を残す数: <input id="sKeep" type="number" min="1" max="100" step="1"> 件（1〜100）</label></div>
+    <div class="srow"><span id="sMsg" class="hint"></span></div>
+    <div class="btns"><button id="sClose" class="primary">閉じる</button></div>
+  </div>
+</div>
+<div id="rveil" hidden>
+  <div id="rdlg" role="dialog" aria-label="未保存の内容の復元">
+    <h3>保存されないまま終了した内容があります</h3>
+    <p class="hint">前回、保存しないまま終わった編集中の内容（自動保存の下書き）です。復元すると、その内容が編集欄に入ります（まだ保存はされません。内容を確かめて、保存してください）。</p>
+    <div id="rList"></div>
+    <div class="btns"><button id="rAll">すべて破棄</button><button id="rLater" class="primary">あとで</button></div>
+  </div>
+</div>
+<div id="fxveil" hidden>
+  <div id="fxdlg" role="dialog" aria-label="修正の確認">
+    <h3 id="fxTitle">修正の確認</h3>
+    <p class="hint">次のように直します。上が直す前、下が直したあとです。直したあとは、Ctrl+Z で、まとめて元に戻せます。</p>
+    <div id="fxList"></div>
+    <div class="btns"><button id="fxOk" class="primary">直す</button><button id="fxCancel">キャンセル</button></div>
   </div>
 </div>
 <div id="lveil" hidden>
@@ -1118,7 +1190,8 @@ async function confirmDiscard() {
   const i = await ask('変更を保存しますか？', `「${baseName(doc.path)}」には、保存していない変更があります。`,
     [{ label: '保存する', primary: true }, { label: '保存しない' }, { label: 'キャンセル' }]);
   if (i === 0) return await save();
-  return i === 1;
+  if (i === 1) { dropDrafts([doc.path]); return true; }     // 「保存しない」は、内容を捨てる決定
+  return false;
 }
 
 function loadIntoEditor(text) {
@@ -1129,22 +1202,80 @@ function loadIntoEditor(text) {
   scheduleLint(80);
 }
 
-async function openPath(path) {
-  if (!await confirmDiscard()) return;
+// ---- 戻る・進む: 開いたファイル（リンクをたどった先・一覧から開いたもの）の履歴。各項目に、読んでいた位置も保つ
+// 自動更新・読み直し・同じファイルを開き直すだけのときは、履歴を増やさない。途中へ戻ってから別のファイルを開くと、「進む」側は捨てる。
+const nav = { list: [], idx: -1, busy: false, detached: false };
+const NAV_MAX = 100;
+const navName = p => p.substring(p.lastIndexOf('\\') + 1);
+function navSaveScroll() {
+  const e = nav.list[nav.idx];
+  if (e && !nav.detached) { const s = cm.getScrollInfo(); e.top = s.top; e.left = s.left; }
+}
+function navPush(path) {
+  const cur = nav.list[nav.idx];
+  if (!nav.detached && cur && cur.path.toLowerCase() === path.toLowerCase()) return;
+  nav.list = nav.list.slice(0, nav.idx + 1);
+  nav.list.push({ path, top: 0, left: 0 });
+  if (nav.list.length > NAV_MAX) nav.list.shift();
+  nav.idx = nav.list.length - 1; nav.detached = false; navUpdate();
+}
+function navTarget(delta) {
+  if (nav.detached) return delta < 0 && nav.idx >= 0 ? nav.idx : -1;      // 「無題」にいるときは、直前の文書へ戻る
+  const t = nav.idx + delta;
+  return t >= 0 && t < nav.list.length ? t : -1;
+}
+function navUpdate() {
+  const b = navTarget(-1), f = navTarget(1);
+  $('btnBack').disabled = b < 0; $('btnFwd').disabled = f < 0;
+  $('btnBack').title = b >= 0 ? `戻る: ${navName(nav.list[b].path)} (Alt+Shift+←)` : '戻る (Alt+Shift+←)';
+  $('btnFwd').title = f >= 0 ? `進む: ${navName(nav.list[f].path)} (Alt+Shift+→)` : '進む (Alt+Shift+→)';
+}
+function navReset() { nav.list = []; nav.idx = -1; nav.detached = false; navUpdate(); }
+async function navGo(delta) {
+  const t = navTarget(delta);
+  if (t < 0 || nav.busy) return;
+  navSaveScroll();
+  const e = nav.list[t];
+  nav.busy = true;
+  try {
+    const r = await openPath(e.path, e);
+    if (r === true) { nav.idx = t; nav.detached = false; }
+    else if (r === 'error') {                                   // 消された・開けない。履歴から外す
+      nav.list.splice(t, 1);
+      if (t <= nav.idx) nav.idx--;
+    }
+  } finally { nav.busy = false; navUpdate(); }
+}
+$('btnBack').onclick = () => navGo(-1);
+$('btnFwd').onclick = () => navGo(1);
+navUpdate();
+function navSaved(before, path) {                   // 名前を付けて保存・別名で保存したとき、履歴の項目を新しい名前にそろえる
+  const cur = nav.list[nav.idx];
+  if (before && cur && !nav.detached && cur.path.toLowerCase() === before.toLowerCase()) { cur.path = path; navUpdate(); }
+  else if (!before) navPush(path);                  // 「無題」を初めて保存した
+}
+
+async function openPath(path, restore) {
+  if (!await confirmDiscard()) return false;
+  navSaveScroll();                         // 離れる文書の、読んでいた位置を覚える
   const r = await api.read_file(path);
-  if (r.error) { showMsg(r.error); return; }
+  if (r.error) { showMsg(r.error); return 'error'; }
   showMsg('');
   const d = r.doc;
   Object.assign(doc, { path, encoding: d.encoding, newline: d.newline, stamp: d.stamp, readonly: d.readonly });
+  if (!nav.busy) navPush(path);
   loadIntoEditor(d.text);
+  if (restore) setTimeout(() => cm.scrollTo(restore.left, restore.top), 400);   // プレビューの描き直し（先頭へ戻す）が済んでから、前の位置へ
   if (d.warning) status(d.warning, true, 0);
   else if (d.mixed_newlines) status(`改行が混在していたため、保存すると ${d.newline} にそろいます`, true, 8000);
   else status('');
   if (!folder || !path.toLowerCase().startsWith(folder.toLowerCase() + '\\')) await loadFolder(dirName(path));
   renderList();
+  return true;
 }
 
 function resetToBlank() {             // 空の「無題」にする（保存の確認は、呼ぶ側で済ませておく）
+  navSaveScroll(); nav.detached = nav.idx >= 0; navUpdate();         // 「無題」は履歴に入れず、「戻る」で直前の文書へ戻れるようにする
   Object.assign(doc, { path: null, encoding: cfg.default_encoding, newline: cfg.default_newline, stamp: null, readonly: false });
   loadIntoEditor(''); status('');
 }
@@ -1158,7 +1289,10 @@ async function saveTo(path, stamp) {
   status('保存中…', false, 0);                       // 押したことが分かるように、すぐ表示する
   const r = await api.save(path, cm.getValue(), doc.encoding, doc.newline, stamp);
   if (r.ok) {
+    const before = doc.path;
     doc.path = path; doc.stamp = r.stamp; cm.markClean(); doc.metaDirty = false;
+    navSaved(before, path);
+    dropDrafts([before, path, null]);     // 保存した文書（と、保存前の「無題」）の下書きは、もう要らない
     updateDirty(); status('保存しました ' + new Date().toLocaleTimeString(), false, 4000);
     if (!folder || !path.toLowerCase().startsWith(folder.toLowerCase() + '\\')) await loadFolder(dirName(path));
     else syncList(true);
@@ -1245,10 +1379,74 @@ async function requestClose() {
   const i = await ask('変更を保存しますか？', `「${baseName(doc.path)}」には、保存していない変更があります。`,
     [{ label: '保存して閉じる', primary: true }, { label: '保存しないで閉じる' }, { label: 'キャンセル' }]);
   if (i === 0) { if (await save()) api.close_now(); }
-  else if (i === 1) api.close_now();
+  else if (i === 1) { await dropDrafts([doc.path]); api.close_now(); }
 }
 
 // ============================================================ 一覧
+// ---- 一覧の階層表示: フォルダ行（▸／▾）を押すと、そのフォルダの中を開閉する
+// 初めは、直下のフォルダだけ開く（深いものは閉じる）。開いたファイルのあるフォルダは、そのファイルを開いたときに自動で開く
+// （そのあと自分で閉じたものは、閉じたまま）。絞り込み中は、これまでどおり、平らに並べる。
+const tree = { root: null, open: new Map(), revealed: null };
+function buildTree(rels) {
+  const root = { dirs: new Map(), files: [], count: 0 };
+  for (const rel of rels) {
+    const parts = rel.split('/'), name = parts.pop();
+    let node = root, path = ''; node.count++;
+    for (const p of parts) {
+      path = path ? path + '/' + p : p;
+      if (!node.dirs.has(p)) node.dirs.set(p, { name: p, path, dirs: new Map(), files: [], count: 0 });
+      node = node.dirs.get(p); node.count++;
+    }
+    node.files.push({ rel, name });
+  }
+  return root;
+}
+const treeIsOpen = (path, depth) => tree.open.has(path) ? tree.open.get(path) : depth === 0;
+function treeDirPaths(rels) {
+  const s = new Set();
+  for (const rel of rels) { const parts = rel.split('/'); parts.pop(); let p = ''; for (const x of parts) { p = p ? p + '/' + x : x; s.add(p); } }
+  return [...s];
+}
+function treeRevealCurrent() {
+  const cur = doc.path;
+  if (!cur || !folder || !cur.toLowerCase().startsWith(folder.toLowerCase() + '\\')) return;
+  const rel = cur.slice(folder.length + 1).replace(/\\/g, '/');
+  if (rel === tree.revealed) return;
+  tree.revealed = rel;
+  const parts = rel.split('/'); parts.pop();
+  let p = ''; for (const x of parts) { p = p ? p + '/' + x : x; tree.open.set(p, true); }
+}
+function renderTreeNode(list, node, depth) {
+  const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
+  for (const d of dirs) {
+    const open = treeIsOpen(d.path, depth);
+    const row = document.createElement('div'); row.className = 'dirrow';
+    row.setAttribute('role', 'treeitem'); row.setAttribute('aria-expanded', open ? 'true' : 'false');
+    row.style.paddingLeft = (8 + depth * 14) + 'px'; row.dataset.dir = d.path; row.title = d.path;
+    const ch = document.createElement('span'); ch.className = 'chev'; ch.textContent = open ? '▾' : '▸';
+    const nm = document.createElement('span'); nm.className = 'dname'; nm.textContent = '📁 ' + d.name;
+    const ct = document.createElement('span'); ct.className = 'dcnt'; ct.textContent = d.count;
+    row.append(ch, nm, ct);
+    row.onclick = () => { tree.open.set(d.path, !open); renderList(); };
+    list.appendChild(row);
+    if (open) renderTreeNode(list, d, depth + 1);
+  }
+  for (const f of node.files) list.appendChild(fileItem(f.rel, f.name, false, 10 + depth * 14));
+}
+function fileItem(rel, label, showDir, indent) {
+  const full = folder + '\\' + rel.replace(/\//g, '\\');
+  const div = document.createElement('div');
+  div.className = 'item' + (doc.path && doc.path.toLowerCase() === full.toLowerCase() ? ' sel' : '');
+  div.dataset.rel = rel;
+  if (indent) div.style.paddingLeft = indent + 'px';
+  div.textContent = label;
+  const i = rel.lastIndexOf('/');
+  if (showDir && i >= 0) { const s = document.createElement('span'); s.className = 'dir'; s.textContent = rel.slice(0, i); div.appendChild(s); }
+  div.onclick = () => openPath(full);
+  return div;
+}
+$('treeOpen').onclick = () => { for (const p of treeDirPaths(files)) tree.open.set(p, true); renderList(); };
+$('treeClose').onclick = () => { for (const p of treeDirPaths(files)) tree.open.set(p, false); renderList(); };
 function renderList() {
   const q = $('filter').value.trim().toLowerCase();
   const shown = files.filter(f => f.toLowerCase().includes(q));
@@ -1256,22 +1454,15 @@ function renderList() {
   $('count').style.color = listTruncated ? '#cf222e' : '';
   $('count').title = listTruncated ? '大きなフォルダーなので、一覧は途中までです。もっと下のフォルダーを選ぶと、全部を出せます' : '';
   const list = $('list'); list.textContent = '';
-  let last = null;
-  for (const rel of shown) {
-    const i = rel.lastIndexOf('/'), dir = i < 0 ? '' : rel.slice(0, i);
-    if (!q && dir !== last && (dir || last !== null)) {
-      const h = document.createElement('div'); h.className = 'dirhead';
-      h.textContent = '📁 ' + (dir || '（このフォルダー直下）'); list.appendChild(h);
-    }
-    last = dir;
-    const full = folder + '\\' + rel.replace(/\//g, '\\');
-    const div = document.createElement('div');
-    div.className = 'item' + (doc.path && doc.path.toLowerCase() === full.toLowerCase() ? ' sel' : '');
-    div.textContent = i < 0 ? rel : rel.slice(i + 1);
-    if (q && i >= 0) { const s = document.createElement('span'); s.className = 'dir'; s.textContent = dir; div.appendChild(s); }
-    div.onclick = () => openPath(full);
-    list.appendChild(div);
+  if (tree.root !== folder) { tree.root = folder; tree.open.clear(); tree.revealed = null; }
+  const hasDirs = shown.some(r => r.includes('/'));
+  $('treeBtns').hidden = !!q || !hasDirs;
+  if (q || !hasDirs) {                       // 絞り込み中（と、サブフォルダが無いとき）: 平らに並べ、フォルダ名は小さく添える
+    for (const rel of shown) { const i = rel.lastIndexOf('/'); list.appendChild(fileItem(rel, i < 0 ? rel : rel.slice(i + 1), !!q, 0)); }
+    return;
   }
+  treeRevealCurrent();
+  renderTreeNode(list, buildTree(shown), 0);
 }
 let listTruncated = false;      // 一覧が、時間か件数の上限で途中までのとき true
 async function loadFolder(path) {
@@ -1315,7 +1506,7 @@ document.addEventListener('dragover', e => e.preventDefault());
 
 // ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
 async function handleDrop(kind, path) {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen() || safetyDlgOpen() || restoreDlgOpen() || fixDlgOpen()) return;
   if (kind === 'folder') await switchFolder(path); else await openPath(path);
 }
 
@@ -1601,11 +1792,157 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && tableDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTableDlg(); }
   if (e.key === 'Escape' && tmplDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTemplateDlg(); }
   if (e.key === 'Escape' && lintDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeLintDlg(); }
+  if (e.key === 'Escape' && safetyDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeSafetyDlg(); }
+  if (e.key === 'Escape' && restoreDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeRestoreDlg(); }
+  if (e.key === 'Escape' && fixDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeFixDlg(); }
 }, true);
+
+// ============================================================ 自動保存（下書き）と復元
+// 下書きは Python（drafts.py）が %APPDATA% へ書く。文書のファイルは書き換えない。
+const safety = { timer: null, lastGen: '', lastAt: '', busy: false, wrote: null, adopt: null };
+// 下書きを消す。この起動で書いたもの・復元して引き継いだもの・指定した文書のものに限る（前回の未処理の下書きは、触らない）
+async function dropDrafts(paths) {
+  await api.discard_drafts_for(paths);
+  if (safety.adopt) { await api.discard_draft(safety.adopt); safety.adopt = null; }
+  safety.wrote = null; safety.lastGen = '';
+}
+const safetyDlgOpen = () => !$('sveil').hidden;
+const restoreDlgOpen = () => !$('rveil').hidden;
+function safetyPref() {
+  const p = prefs.safety || {};
+  return { autosave: p.autosave !== false, interval: p.interval || 30, keep: p.keep || 5 };
+}
+function safetySave(patch) {
+  prefs.safety = { ...safetyPref(), ...patch };
+  api.set_prefs({ safety: prefs.safety });
+}
+function renderAutoBtn() {
+  const p = safetyPref(), b = $('autoBtn');
+  b.innerHTML = p.autosave ? '💾 自動保存: 入' : '💾 自動保存: <span class="off">切</span>';
+  b.title = (p.autosave ? `${p.interval}秒ごとに、編集中の内容を下書きに保存します。` : '自動保存は切れています。')
+    + (safety.lastAt ? `（最後の下書き: ${safety.lastAt}）` : '') + ' 押すと、設定を開きます。';
+}
+async function initSafety() {
+  $('autoBtn').onclick = () => openSafetyDlg();
+  $('sClose').onclick = closeSafetyDlg;
+  $('sveil').addEventListener('mousedown', e => { if (e.target === $('sveil')) closeSafetyDlg(); });
+  $('sAuto').onchange = () => { safetySave({ autosave: $('sAuto').checked }); $('sInterval').disabled = !$('sAuto').checked; restartAutosave(); };
+  $('sInterval').onchange = () => { safetySave({ interval: parseInt($('sInterval').value, 10) }); restartAutosave(); };
+  $('sKeep').onchange = () => {
+    const n = parseInt($('sKeep').value, 10);
+    if (!(n >= 1 && n <= 100)) { $('sMsg').textContent = '1〜100 の整数で指定してください'; $('sKeep').value = safetyPref().keep; return; }
+    $('sMsg').textContent = ''; safetySave({ keep: n });
+    $('sMsg').textContent = `退避は、新しいものから ${n} 件だけ残します（多いぶんは、すぐに整理します）。`;
+  };
+  renderAutoBtn(); restartAutosave();
+  await offerRestore();
+}
+function openSafetyDlg() {
+  const p = safetyPref();
+  $('sAuto').checked = p.autosave; $('sInterval').value = String(p.interval); $('sInterval').disabled = !p.autosave;
+  $('sKeep').value = p.keep; $('sMsg').textContent = '';
+  $('sveil').hidden = false; $('sClose').focus();
+}
+function closeSafetyDlg() { $('sveil').hidden = true; renderAutoBtn(); cm.focus(); }
+
+function restartAutosave() {
+  clearTimeout(safety.timer); renderAutoBtn();
+  const p = safetyPref();
+  if (!p.autosave) return;
+  safety.timer = setTimeout(async () => { await autosaveTick(); restartAutosave(); }, p.interval * 1000);
+}
+// 変更があったときだけ書く。保存済みになっていたら、残っている下書きを消す
+async function autosaveTick() {
+  if (safety.busy || !api) return;
+  safety.busy = true;
+  try {
+    if (!isDirty()) { if (safety.wrote !== null) await dropDrafts([safety.wrote.path]); return; }    // 保存済みに戻った（取り消しなど）なら、自分が書いた下書きを消す
+    const gen = cm.changeGeneration() + ':' + doc.metaDirty + ':' + doc.path;
+    if (gen === safety.lastGen) return;
+    const r = await api.save_draft(doc.path, cm.getValue(), doc.encoding, doc.newline);
+    if (r && r.ok && r.key) {
+      safety.lastGen = gen; safety.lastAt = new Date().toLocaleTimeString(); safety.wrote = { path: doc.path }; renderAutoBtn();
+      if (safety.adopt && safety.adopt !== r.key) { await api.discard_draft(safety.adopt); safety.adopt = null; }   // 復元元の下書きは、新しい下書きに引き継いだ
+    } else if (r && r.ok) { /* 空の文書: 守るものがない */ }
+    else status('下書きを保存できませんでした' + (r && r.error ? ': ' + r.error : ''), true, 6000);
+  } finally { safety.busy = false; }
+}
+
+// ---- 起動したとき、保存されないまま終わった下書きを見つけたら、復元を提案する
+function closeRestoreDlg() { $('rveil').hidden = true; cm.focus(); }
+async function offerRestore() {
+  if (isDirty()) return;
+  const list = await api.list_drafts();
+  if (!list.length) return;
+  $('rAll').onclick = async () => {
+    const i = await askOver($('rveil'), 'すべて破棄しますか？', `${list.length} 件の下書きを消します。元には戻せません。`,
+      [{ label: 'すべて破棄', primary: true }, { label: 'キャンセル' }]);
+    if (i !== 0) return;
+    for (const d of await api.list_drafts()) await api.discard_draft(d.key);
+    closeRestoreDlg();
+  };
+  $('rLater').onclick = closeRestoreDlg;
+  fillRestoreList(list);
+  $('rveil').hidden = false; $('rLater').focus();
+}
+function fillRestoreList(list) {
+  const box = $('rList'); box.textContent = '';
+  if (!list.length) { closeRestoreDlg(); return; }
+  for (const d of list) {
+    const r = document.createElement('div'); r.className = 'rrow';
+    const n = document.createElement('div'); n.className = 'rname'; n.textContent = d.path || '無題（保存していない文書）';
+    const acts = document.createElement('div'); acts.className = 'racts';
+    const b1 = document.createElement('button'); b1.textContent = '復元'; b1.className = 'primary';
+    const b2 = document.createElement('button'); b2.textContent = '破棄';
+    acts.append(b1, b2);
+    const m = document.createElement('div'); m.className = 'rmeta';
+    m.textContent = `${d.saved_at.replace('T', ' ')} ／ ${d.chars.toLocaleString()}文字`;
+    r.append(n, acts, m);
+    if (d.preview) { const p = document.createElement('div'); p.className = 'rprev'; p.textContent = d.preview; r.appendChild(p); }
+    if (d.path && !d.exists) { const w = document.createElement('div'); w.className = 'rwarn'; w.textContent = '元のファイルが見つかりません。復元すると、保存のとき、同じ場所へ作り直します。'; r.appendChild(w); }
+    else if (d.disk_newer) { const w = document.createElement('div'); w.className = 'rwarn'; w.textContent = '※ この下書きのあとに、元のファイルが書き換えられています。復元して保存すると、その変更を上書きします。'; r.appendChild(w); }
+    b1.onclick = () => restoreDraft(d);
+    b2.onclick = async () => {
+      const i = await askOver($('rveil'), '下書きを破棄しますか？', `「${d.path || '無題'}」の下書きを消します。元には戻せません。`,
+        [{ label: '破棄', primary: true }, { label: 'キャンセル' }]);
+      if (i !== 0) return;
+      await api.discard_draft(d.key); fillRestoreList(await api.list_drafts());
+    };
+    box.appendChild(r);
+  }
+}
+// 確認のダイアログ（z-index が低い）が、復元のダイアログの下に隠れないよう、聞いている間だけ隠す
+async function askOver(layer, title, text, buttons) {
+  layer.hidden = true;
+  try { return await ask(title, text, buttons); } finally { layer.hidden = false; }
+}
+async function restoreDraft(d) {
+  $('rveil').hidden = true;
+  try {
+    if (isDirty() && !await confirmDiscard()) return;
+    const body = await api.get_draft(d.key);
+    if (!body) { status('下書きを読めませんでした', true, 6000); return; }
+    let stamp = null;
+    if (body.path) {                                  // 元のファイルがあれば、その現在の状態を基準にする（保存の競合の確認が働く）
+      const c = await api.check_changed(body.path);
+      if (c.state === 'exists') stamp = c.stamp;
+    }
+    Object.assign(doc, { path: body.path || null, encoding: body.encoding || cfg.default_encoding,
+                         newline: body.newline || cfg.default_newline, stamp, readonly: false });
+    loadIntoEditor(body.text);
+    doc.metaDirty = true; updateDirty();             // 保存していない内容として開く（保存するまで、下書きは残す）
+    safety.adopt = d.key; safety.lastGen = '';       // 次の下書きを書いたら、復元元は消す
+    status('下書きから復元しました。内容を確かめて、保存してください', false, 8000);
+    if (body.path && !folder) await loadFolder(dirName(body.path));
+  } finally {
+    const left = await api.list_drafts();
+    if (left.length) { fillRestoreList(left); $('rveil').hidden = false; } else closeRestoreDlg();
+  }
+}
 
 // ============================================================ 検査（lint）
 // 文書の検査は Python（lint.py）。数式と図の誤りは、描いた結果（プレビューの中の印）から集める。
-const lint = { rules: [], issues: [], dom: [], seq: 0, timer: null, domTimer: null, stale: false, skipped: false, error: '' };
+const lint = { gen: -1, rules: [], issues: [], dom: [], seq: 0, timer: null, domTimer: null, stale: false, skipped: false, error: '' };
 const lintPref = () => {
   const p = prefs.lint || {};
   const off = Array.isArray(p.disabled) ? p.disabled : lint.rules.filter(r => !r.default).map(r => r.id);
@@ -1626,6 +1963,9 @@ async function initLint() {
   $('lintClose').onclick = () => lintToggle(false);
   $('lintNow').onclick = () => runLint();
   $('lintRules').onclick = () => openLintDlg();
+  $('lintFixAll').onclick = () => openFixDlg(lintAll().filter(i => i.fix));
+  $('fxOk').onclick = applyFixes; $('fxCancel').onclick = closeFixDlg;
+  $('fxveil').addEventListener('mousedown', e => { if (e.target === $('fxveil')) closeFixDlg(); });
   $('lClose').onclick = closeLintDlg;
   $('lDefault').onclick = () => { lintSave({ disabled: lint.rules.filter(r => !r.default).map(r => r.id) }); fillLintDlg(); runLint(); };
   $('lAuto').onchange = () => { lintSave({ auto: $('lAuto').checked }); if ($('lAuto').checked) runLint(); else { clearTimeout(lint.timer); renderLint(); } };   // 切ったら、予約済みの検査も取り消す
@@ -1653,9 +1993,10 @@ function scheduleLint(delay) { clearTimeout(lint.timer); lint.timer = setTimeout
 
 async function runLint() {
   if (!api || !lint.rules.length) return;
-  const seq = ++lint.seq;
+  const seq = ++lint.seq, gen = cm.changeGeneration();
   const r = await api.lint(cm.getValue(), doc.path, lintPref().disabled);
   if (seq !== lint.seq) return;                     // もっと新しい検査がある
+  lint.gen = gen;
   lint.issues = r.issues || []; lint.skipped = !!r.skipped; lint.error = r.error || ''; lint.stale = false;
   collectDomIssues(true);
   renderLint();
@@ -1704,6 +2045,9 @@ function renderLint() {
       cm.setGutterMarker(line, 'lint-gutter', m);
     }
   });
+  const fixable = all.filter(i => i.fix);
+  $('lintFixAll').hidden = !fixable.length || doc.readonly;
+  $('lintFixAll').textContent = `すべて直す（${fixable.length}）`;
   if ($('lintPanel').hidden) return;
   const box = $('lintList'); box.textContent = '';
   if (!all.length) { const d = document.createElement('div'); d.className = 'lempty'; d.textContent = lint.skipped ? '' : '✓ 問題は見つかりませんでした。'; box.appendChild(d); return; }
@@ -1715,6 +2059,11 @@ function renderLint() {
     const rid = document.createElement('span'); rid.className = 'rid'; rid.textContent = i.rule;
     const rule = lint.rules.find(x => x.id === i.rule); if (rule) rid.title = rule.name + '：' + rule.help;
     r.append(ic, ln, msg, rid);
+    if (i.fix && !doc.readonly) {
+      const b = document.createElement('button'); b.className = 'lfix'; b.textContent = '直す'; b.title = i.fix.label;
+      b.onclick = e => { e.stopPropagation(); openFixDlg([i]); };
+      r.appendChild(b);
+    } else r.appendChild(document.createElement('span'));
     r.onclick = () => { box.querySelectorAll('.sel').forEach(x => x.classList.remove('sel')); r.classList.add('sel'); lintJump(i.line); };
     box.appendChild(r);
   }
@@ -1729,6 +2078,72 @@ function lintFromGutter(line) {
   const row = [...$('lintList').querySelectorAll('.lrow')].find(r => parseInt(r.dataset.line, 10) === line);
   $('lintList').querySelectorAll('.sel').forEach(x => x.classList.remove('sel'));
   if (row) { row.classList.add('sel'); row.scrollIntoView({ block: 'nearest' }); }
+}
+
+// ---- 自動修正: 機械的に直せる指摘だけ。直す前後を見せ、確かめてから、まとめて1回の操作で当てる（Ctrl+Z で戻せる）
+let fixPending = [];
+const fixDlgOpen = () => !$('fxveil').hidden;
+function closeFixDlg() { $('fxveil').hidden = true; fixPending = []; cm.focus(); }
+async function lintIsCurrent() {
+  if (lint.gen === cm.changeGeneration()) return true;
+  await runLint();                                  // 検査したあとに、文書が変わっていた
+  status('文書が変わったので、検査し直しました。もう一度、押してください', true, 6000);
+  return false;
+}
+// 画面の範囲を、文書の位置（文字数）に直す。重なる編集は、後ろから当てるとき飛ばす
+function fixEdits(issues) {
+  const seen = new Set(), out = [];
+  for (const i of issues) for (const e of (i.fix ? i.fix.edits : [])) {
+    const key = [e.from, e.to, e.text].join('|');
+    if (seen.has(key)) continue; seen.add(key);
+    out.push({ e, a: cm.indexFromPos({ line: e.from[0], ch: e.from[1] }), b: cm.indexFromPos({ line: e.to[0], ch: e.to[1] }), label: i.fix.label });
+  }
+  out.sort((x, y) => y.a - x.a || y.b - x.b);
+  const kept = []; let floor = Infinity;
+  for (const x of out) { if (x.b > floor || x.a > x.b) continue; kept.push(x); floor = x.a; }
+  return kept;                                      // 後ろの編集から並ぶ
+}
+async function openFixDlg(issues) {
+  if (doc.readonly || !issues.length || !await lintIsCurrent()) return;
+  const edits = fixEdits(issues);
+  if (!edits.length) return;
+  fixPending = edits;
+  const box = $('fxList'); box.textContent = '';
+  for (const x of [...edits].reverse()) {           // 上の行から見せる
+    const r = document.createElement('div'); r.className = 'fr';
+    const ln = document.createElement('div'); ln.className = 'fl'; ln.textContent = (x.e.from[0] + 1) + '行';
+    const body = document.createElement('div');
+    const k = document.createElement('div'); k.className = 'fk'; k.textContent = x.label;
+    const b = document.createElement('div'); b.className = 'fb'; const a = document.createElement('div'); a.className = 'fa';
+    const f = x.e.from, t = x.e.to;
+    if (f[0] === t[0] && !x.e.text.includes('\n')) {
+      const line = cm.getLine(f[0]);
+      b.textContent = line === '' ? '（空行）' : line; a.textContent = line.slice(0, f[1]) + x.e.text + line.slice(t[1]);
+      if (a.textContent === '') a.textContent = '（空行）';
+    } else if (x.e.text === '\n' && f[0] === t[0] && f[1] === 0) {
+      const line = cm.getLine(f[0]); b.textContent = line; a.textContent = '（空行を足す）\n' + line;
+      if (x.label.includes('後')) { b.textContent = cm.getLine(f[0] - 1); a.textContent = cm.getLine(f[0] - 1) + '\n（空行を足す）'; }
+    } else {
+      const n = Math.max(1, t[0] - f[0]);
+      b.textContent = `（空行 ${n} 行）`; a.textContent = '（取り除く）';
+    }
+    body.append(k, b, a); r.append(ln, body); box.appendChild(r);
+  }
+  $('fxTitle').textContent = `修正の確認（${edits.length} か所）`;
+  $('fxveil').hidden = false; $('fxOk').focus();
+}
+async function applyFixes() {
+  const todo = fixPending;
+  $('fxveil').hidden = true; fixPending = [];
+  if (!todo.length) return;
+  cm.operation(() => {
+    for (const x of todo) cm.replaceRange(x.e.text, { line: x.e.from[0], ch: x.e.from[1] }, { line: x.e.to[0], ch: x.e.to[1] });
+  });
+  cm.focus();
+  status(`${todo.length} か所を直しました（Ctrl+Z で、まとめて元に戻せます）`, false, 8000);
+  await runLint();
+  // 見出しの記号を直すと、それまで見出しでなかった行が見出しになり、その段や空行が、次に指摘されることがある
+  if (lintAll().some(i => i.fix)) status(`${todo.length} か所を直しました。直したことで新しく直せる指摘が出たので、もう一度「すべて直す」を押してください（Ctrl+Z で、まとめて元に戻せます）`, false, 10000);
 }
 
 // ---- ルールのダイアログ
@@ -2004,6 +2419,7 @@ window.addEventListener('pywebviewready', async () => {
   if (cfg.file) await openPath(cfg.file);
   cm.focus();
   prefsReady = true;
+  await initSafety();
 });
 
 // ---- 検索バー
@@ -2085,7 +2501,7 @@ window.addEventListener('resize', () => { cm && cm.refresh(); if (!fitMode) retu
 window.addEventListener('focus', () => { syncList(); checkExternal(); });
 
 document.addEventListener('keydown', e => {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen() || safetyDlgOpen() || restoreDlgOpen() || fixDlgOpen()) return;
   const k = e.key.toLowerCase(), c = e.ctrlKey;
   const inEditor = cm && cm.hasFocus();
   if (e.key === 'Escape') hideCtx();
@@ -2109,6 +2525,8 @@ document.addEventListener('keydown', e => {
   else if (c && (k === '=' || k === '+' || k === ';')) { e.preventDefault(); inEditor ? setEditorSize(edSize() + 1) : zoomBy(1.1); }
   else if (c && (k === '-' || k === '_')) { e.preventDefault(); inEditor ? setEditorSize(edSize() - 1) : zoomBy(1 / 1.1); }
   else if (c && k === '0') { e.preventDefault(); inEditor ? setEditorSize(FONT_PARTS.editor.size) : setZoom(1, false); }
+  else if (e.altKey && e.shiftKey && !e.ctrlKey && e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); navGo(-1); }
+  else if (e.altKey && e.shiftKey && !e.ctrlKey && e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); navGo(1); }
   else if (e.key === 'F5') { e.preventDefault(); $('bReload').click(); }
 }, true);
 </script>

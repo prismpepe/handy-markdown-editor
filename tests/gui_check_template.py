@@ -17,6 +17,7 @@ os.environ['APPDATA'] = tempfile.mkdtemp(prefix='md_appdata_')
 os.startfile = lambda p: None                      # 「テンプレートの場所を開く」で、エクスプローラーを開かない
 import webview
 import mdeditor
+import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 
 api = mdeditor.Api(None)
 os.makedirs(api.template_folder())

@@ -37,7 +37,8 @@ if not SCENARIO:       # 親: 引き継ぎの各場合を別の起動で確か�
 
 os.environ['APPDATA'] = tempfile.mkdtemp(prefix='md_appdata_')
 import webview
-import mdeditor
+import mdeditor
+import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 
 if SCENARIO in MIGRATION:
     mdeditor.save_settings(MIGRATION[SCENARIO][0])

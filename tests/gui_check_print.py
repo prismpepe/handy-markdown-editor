@@ -17,7 +17,8 @@ sys.path.insert(0, '.')
 import tempfile as _tf
 os.environ['APPDATA'] = _tf.mkdtemp(prefix='md_appdata_')   # 利用者の設定・バックアップを書き換えない
 import webview
-import mdeditor
+import mdeditor
+import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 import printing
 
 tmp = tempfile.mkdtemp()

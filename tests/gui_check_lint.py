@@ -15,6 +15,7 @@ sys.path.insert(0, '.')
 os.environ['APPDATA'] = tempfile.mkdtemp(prefix='md_appdata_')
 import webview
 import mdeditor
+import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 
 api = mdeditor.Api(None)
 w = webview.create_window('t', html=mdeditor.build_html(), js_api=api, width=1400, height=900, x=20, y=20)

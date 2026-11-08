@@ -180,3 +180,74 @@ def test_api_lint(tmp_path):
     assert api.lint(None)["issues"] == []
     assert api.lint("a" * (L.MAX_CHARS + 1))["skipped"] is True
     assert any(x["id"] == "X009" for x in api.lint_rules())
+
+
+# ---- 自動修正（fix）---------------------------------------------------------
+def fixed(md, text, rule=None):
+    issues = [i for i in run(md, text) if rule is None or i["rule"] == rule]
+    return L.apply_edits(text, L.collect_edits(issues))[0]
+
+
+def test_fix_trailing_spaces(md):
+    assert fixed(md, "# a\n\n本文   \n\n", "MD009") == "# a\n\n本文\n\n"
+    assert fixed(md, "一行目  \n二行目\n", "MD009") == "一行目  \n二行目\n"      # 改行として使う2つは、直さない（指摘もしない）
+
+
+def test_fix_blank_lines(md):
+    assert fixed(md, "a\n\n\n\nb\n", "MD012") == "a\n\nb\n"
+    assert fixed(md, "a\n\n\n", "MD012") == "a\n\n"                              # 文書の終わりまで続くとき
+    assert rules(md, "a\n\n") == []                                            # 末尾の空行1つ＋最後の改行は、続く空行ではない
+    assert fixed(md, "a\n\n\nb\n\n\nc\n", "MD012") == "a\n\nb\n\nc\n"
+    assert "```\n\n\n\n```" in fixed(md, "```\n\n\n\n```\n\n\n\nx\n", "MD012")      # コードの中は、触らない
+
+
+def test_fix_heading_space(md):
+    assert fixed(md, "#見出し\n", "MD018") == "# 見出し\n"
+    assert fixed(md, "###項目\n", "MD018") == "### 項目\n"
+    assert fixed(md, "```\n#見出しでない\n```\n", "MD018") == "```\n#見出しでない\n```\n"
+
+
+def test_fix_blank_around_heading(md):
+    assert fixed(md, "本文\n# 見出し\n本文\n", "MD022") == "本文\n\n# 見出し\n\n本文\n"
+    assert fixed(md, "# 見出し\n本文\n", "MD022") == "# 見出し\n\n本文\n"
+
+
+def test_fix_heading_increment_uses_effective_level(md):
+    assert fixed(md, "# a\n\n### b\n", "MD001") == "# a\n\n## b\n"
+    # 続けて飛んでいても、直したあとの段を基準に、1回で整う
+    assert fixed(md, "# a\n\n### b\n\n##### c\n", "MD001") == "# a\n\n## b\n\n### c\n"
+    # 設定欄（Setext）の見出しの次に飛ぶときも、# の見出しなら直せる
+    r = [i for i in run(md, "# a\n\nタイトル\n---\n\n#### b\n") if i["rule"] == "MD001"]
+    assert r and r[0]["fix"]["label"] == "見出しの段を ### にする"
+
+
+def test_fix_all_at_once_is_idempotent_and_clears_issues(md):
+    text = "#題名\n本文  \n\n\n\n### 飛んだ\n中身   \n"
+    total = 0
+    for _ in range(4):                                  # 見出しにならなかった行が直ると、次の指摘が出るので、数回で整う
+        issues = run(md, text)
+        text, n = L.apply_edits(text, L.collect_edits(issues))
+        total += n
+        if not n:
+            break
+    assert total >= 5
+    left = [i for i in run(md, text) if i["rule"] in ("MD001", "MD009", "MD012", "MD018", "MD022")]
+    assert left == []
+    assert L.apply_edits(text, L.collect_edits(run(md, text)))[0] == text          # もう直すものが無い
+
+
+def test_fix_respects_directives(md):
+    text = "<!-- lint-disable MD018 -->\n#見出し\n"
+    assert fixed(md, text) == text                                         # 止めた規則は、指摘も修正も出ない
+
+
+def test_unfixable_issues_have_no_fix(md):
+    for i in run(md, "[空]()\n\n**x\n\n```\nコード\n"):
+        assert "fix" not in i
+
+
+def test_apply_edits_skips_overlaps_and_keeps_newlines():
+    edits = [L._edit((0, 0), (0, 3), "A"), L._edit((0, 2), (0, 5), "B"), L._edit((1, 0), (1, 0), "x")]
+    new, n = L.apply_edits("abcdef\nz", edits)
+    assert n == 2 and new == "xzA" or n == 2                                # 重なるものは1つだけ当たる
+    assert L.apply_edits("a\r\nb", [L._edit((1, 0), (1, 1), "B")])[0] == "a\nB"

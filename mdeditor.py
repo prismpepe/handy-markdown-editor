@@ -25,6 +25,7 @@ import autolink
 import cjk_emphasis
 import clipboard
 import dialogs
+import drafts
 import filedrop
 import highlight
 import imgembed
@@ -40,7 +41,7 @@ import shellreg
 from sanitize import sanitize
 
 APP_NAME = "Handy Markdown Editor"
-APP_VERSION = "1.16.1"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.17.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -96,6 +97,10 @@ def settings_path():
 
 def backup_root():
     return os.path.join(data_dir(), "backup")
+
+
+def drafts_root():
+    return os.path.join(data_dir(), "drafts")
 
 
 def load_settings():
@@ -250,6 +255,8 @@ class Api:
         self._prefs_lock = threading.Lock()
         self._persist_location = not (start_path and os.path.isfile(start_path))
         self._keeper = None
+        self._draft_lock = threading.Lock()
+        self._slot = "untitled" + format(int(time.time() * 1000), "x")      # この起動の「無題」の下書きの名前
 
     # --- 起動 ---------------------------------------------------------------
     def get_initial(self):
@@ -297,6 +304,8 @@ class Api:
                     settings["prefs"] = {**uiprefs.clean_layout(settings.get("prefs")), **layout}
                 settings.update(clean)
                 save_settings(settings)
+            if "safety" in clean:        # 退避の数を減らしたら、すぐに古いものを片づける
+                filemodel.prune_backups(backup_root(), self.safety()["keep"])
         return {**layout, **clean}
 
     def list_fonts(self):
@@ -537,7 +546,7 @@ class Api:
         try:
             new_stamp = filemodel.write_document(
                 path, text, encoding, newline, expected_stamp=expected,
-                backup_root=backup_root())
+                backup_root=backup_root(), backup_keep=self.safety()["keep"])
         except filemodel.Conflict:
             return {"ok": False, "kind": "conflict"}
         except filemodel.EncodingFailure as e:
@@ -552,6 +561,45 @@ class Api:
         self._doc_dir = base or None
         html = self._md.render(text, {"base": base})
         return sanitize(html, lambda src: inline_image(src, base))
+
+    # --- 保存の設定と、下書き（自動保存）-----------------------------------
+    @staticmethod
+    def safety():
+        """保存の設定（自動保存の入切・間隔・退避の数）。足りない項目は既定値。"""
+        return {**uiprefs.SAFETY_DEFAULT, **uiprefs.clean_safety(load_settings().get("safety"))}
+
+    def save_draft(self, path, text, encoding="UTF-8", newline="CRLF"):
+        """編集中の内容を、下書きとして書く（文書そのものは書き換えない）。"""
+        if not isinstance(text, str) or not (path is None or isinstance(path, str)):
+            return {"ok": False}
+        try:
+            with self._draft_lock:
+                key = drafts.save_draft(drafts_root(), path or None, text,
+                                        encoding if encoding in filemodel.ENCODINGS else "UTF-8",
+                                        newline if newline in filemodel.NEWLINES else "CRLF",
+                                        slot=self._slot)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "key": key}
+
+    def list_drafts(self):
+        return drafts.list_drafts(drafts_root())
+
+    def get_draft(self, key):
+        return drafts.read_draft(drafts_root(), key)
+
+    def discard_draft(self, key):
+        if isinstance(key, str) and key.isalnum():
+            with self._draft_lock:
+                drafts.delete_draft(drafts_root(), key)
+        return True
+
+    def discard_drafts_for(self, paths):
+        """指定した文書（None は「無題」）の下書きを消す。保存したとき・保存しないと決めたとき。"""
+        with self._draft_lock:
+            drafts.delete_for(drafts_root(), *[p for p in (paths or []) if p is None or isinstance(p, str)],
+                              slot=self._slot)
+        return True
 
     def lint_rules(self):
         """検査の規則の一覧（番号・名前・既定で検査するか・説明）。"""

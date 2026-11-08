@@ -118,6 +118,34 @@ def clean_lint(value):
     return out
 
 
+SAFETY_DEFAULT = {"autosave": True, "interval": 30, "keep": 5}
+SAFETY_INTERVALS = (10, 30, 60, 120, 300, 600)       # 下書きを書く間隔（秒）
+SAFETY_KEEP = (1, 100)                               # 上書き前の退避を残す数
+
+
+def _int_in(v, lo, hi):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
+        return None
+    v = int(v)
+    return v if lo <= v <= hi else None
+
+
+def clean_safety(value):
+    """保存の設定: 自動保存の入切・間隔（秒）・上書き前の退避を残す数。使える項目だけ返す。"""
+    out = {}
+    if not isinstance(value, dict):
+        return out
+    if isinstance(value.get("autosave"), bool):
+        out["autosave"] = value["autosave"]
+    iv = _int_in(value.get("interval"), 1, 3600)
+    if iv in SAFETY_INTERVALS:
+        out["interval"] = iv
+    k = _int_in(value.get("keep"), *SAFETY_KEEP)
+    if k is not None:
+        out["keep"] = k
+    return out
+
+
 def clean_prefs(patch):
     """画面から受け取った設定のうち、正しいものだけを返す（書き込んでよい項目に限る）。"""
     out = {}
@@ -139,6 +167,10 @@ def clean_prefs(patch):
         table = clean_table(patch["table"])
         if table:
             out["table"] = table
+    if "safety" in patch:
+        safety = clean_safety(patch["safety"])
+        if safety:
+            out["safety"] = safety
     if "lint" in patch:
         lint_prefs = clean_lint(patch["lint"])
         if lint_prefs:

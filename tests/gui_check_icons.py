@@ -16,7 +16,8 @@ import time
 sys.path.insert(0, '.')
 os.environ['APPDATA'] = tempfile.mkdtemp(prefix='md_appdata_')
 import webview
-import mdeditor
+import mdeditor
+import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 
 # 同梱のアイコン集から、図で使うアイコンの描画データの一部を取り出しておく（描かれたかの目印にする）
 pack = json.loads(gzip.open(os.path.join('vendor', 'icons', 'logos.json.gz'), 'rt', encoding='utf-8').read())

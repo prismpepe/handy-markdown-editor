@@ -66,6 +66,44 @@ EXTERNAL = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]+:)", re.I)
 PUNCT_END = tuple(".,;:!。、，；：！")
 
 
+def _edit(start, end, text):
+    """文書の範囲（行・桁は 0 から）を、text に置き換える編集。"""
+    return {"from": [start[0], start[1]], "to": [end[0], end[1]], "text": text}
+
+
+def _fix(label, *edits):
+    return {"label": label, "edits": list(edits)}
+
+
+def apply_edits(text, edits):
+    """編集の一覧を、文書に当てて返す。画面（CodeMirror）と同じに、後ろの編集から当て、
+    すでに当てた編集と重なるものは飛ばす。当てた数も返す: (新しい文書, 当てた数)。"""
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    offsets, pos = [], 0
+    for ln in lines:
+        offsets.append(pos)
+        pos += len(ln) + 1
+    body = "\n".join(lines)
+
+    def at(p):
+        return offsets[p[0]] + p[1]
+
+    todo = sorted(edits, key=lambda e: (at(e["from"]), at(e["to"])), reverse=True)
+    applied, floor = 0, len(body) + 1
+    for e in todo:
+        a, b = at(e["from"]), at(e["to"])
+        if b > floor or a > b:                 # すでに当てた編集（より後ろ）と重なる
+            continue
+        body = body[:a] + e["text"] + body[b:]
+        floor = a
+        applied += 1
+    return body, applied
+
+
+def collect_edits(issues):
+    return [e for i in issues for e in (i.get("fix") or {}).get("edits", [])]
+
+
 def _normalize_label(label):
     return re.sub(r"\s+", " ", label.strip()).upper()
 
@@ -152,6 +190,8 @@ def lint(text, md, doc_path=None, disabled=()):
         return []
     off = {d.upper() for d in disabled}
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    if len(lines) > 1 and lines[-1] == "":
+        lines.pop()                    # 末尾の改行のあとの空要素は、行ではない（「a\n\n」の空行1つを、続く空行としない）
     env = {"base": os.path.dirname(doc_path) if doc_path else ""}
     tokens = md.parse("\n".join(lines), env)
     base = os.path.dirname(doc_path) if doc_path else ""
@@ -169,13 +209,16 @@ def lint(text, md, doc_path=None, disabled=()):
 
     issues = []
 
-    def add(line, rule, severity, message):
+    def add(line, rule, severity, message, fix=None):
         if rule in off:
             return
         line = max(0, min(line, len(lines) - 1))
         if "*" in muted[line] or rule in muted[line]:
             return
-        issues.append({"line": line, "rule": rule, "severity": severity, "message": message})
+        issue = {"line": line, "rule": rule, "severity": severity, "message": message}
+        if fix:
+            issue["fix"] = fix
+        issues.append(issue)
 
     # --- 行ごとの検査 ---
     blank_run = 0
@@ -186,7 +229,14 @@ def lint(text, md, doc_path=None, disabled=()):
         if not line.strip():
             blank_run += 1
             if blank_run == 2:
-                add(i, "MD012", WARNING, "空行が続いています（1行にまとめます）")
+                j = i
+                while j < len(lines) and not lines[j].strip() and j not in code_lines:
+                    j += 1                                         # 続く空行の終わり（i から j の手前まで、余分）
+                if j < len(lines):
+                    edit = _edit((i, 0), (j, 0), "")
+                else:                                              # 文書の終わりまで続くとき
+                    edit = _edit((i - 1, len(lines[i - 1])), (len(lines) - 1, len(lines[-1])), "")
+                add(i, "MD012", WARNING, "空行が続いています（1行にまとめます）", _fix("余分な空行を取り除く", edit))
             continue
         blank_run = 0
         if i in raw_lines:
@@ -196,14 +246,18 @@ def lint(text, md, doc_path=None, disabled=()):
         if trail:
             nxt = lines[i + 1] if i + 1 < len(lines) else ""
             if not (trail == "  " and nxt.strip()):
-                add(i, "MD009", INFO, "行末に余分な空白があります")
+                add(i, "MD009", INFO, "行末に余分な空白があります",
+                    _fix("行末の空白を取り除く", _edit((i, len(stripped)), (i, len(line)), "")))
         if "\t" in line:
             add(i, "MD010", INFO, "タブ文字があります（半角空白にそろえます）")
         if HEADING_NO_SPACE.match(line) and (i == 0 or not lines[i - 1].strip()):
-            add(i, "MD018", WARNING, "# の直後に空白がないため、見出しになりません")
+            m = re.match(r"^ {0,3}#{1,6}", line)
+            add(i, "MD018", WARNING, "# の直後に空白がないため、見出しになりません",
+                _fix("# の後ろに空白を入れる", _edit((i, m.end()), (i, m.end()), " ")))
 
     # --- 見出し ---
     last_level, seen, h1 = 0, {}, 0
+    eff_last = 0                       # 段の飛びを直したあとの、直前の見出しの段（直す先を決めるため）
     ids, html_ids = set(), set()
     for idx, t in enumerate(tokens):
         if t.type == "heading_open" and t.map:
@@ -215,17 +269,26 @@ def lint(text, md, doc_path=None, disabled=()):
             if idx + 1 < len(tokens) and tokens[idx + 1].type == "inline":
                 label = "".join(c.content for c in tokens[idx + 1].children or []
                                 if c.type in ("text", "code_inline")).strip()
+            fix001, new_level = None, level
             if last_level and level > last_level + 1:
+                new_level = eff_last + 1
+                m = re.match(r"^( {0,3})(#{1,6})(?=[ \t]|$)", lines[t.map[0]])
+                if m and t.markup.startswith("#") and new_level < level:        # 設定欄（===・---）の見出しは、直さない
+                    fix001 = _fix("見出しの段を %s にする" % ("#" * new_level),
+                                  _edit((t.map[0], m.end(1)), (t.map[0], m.end(2)), "#" * new_level))
                 add(t.map[0], "MD001", WARNING,
-                    "見出しの段が飛んでいます（%s の次に %s）" % ("#" * last_level, "#" * level))
+                    "見出しの段が飛んでいます（%s の次に %s）" % ("#" * last_level, "#" * level), fix001)
             last_level = level
+            eff_last = new_level if fix001 else level
             if t.level == 0:
                 before = t.map[0] - 1
                 if before >= 0 and lines[before].strip():
-                    add(t.map[0], "MD022", WARNING, "見出しの前に空行がありません")
+                    add(t.map[0], "MD022", WARNING, "見出しの前に空行がありません",
+                        _fix("見出しの前に空行を入れる", _edit((t.map[0], 0), (t.map[0], 0), "\n")))
                 after = t.map[1]
                 if after < len(lines) and lines[after].strip():
-                    add(t.map[0], "MD022", WARNING, "見出しの後に空行がありません")
+                    add(t.map[0], "MD022", WARNING, "見出しの後に空行がありません",
+                        _fix("見出しの後に空行を入れる", _edit((after, 0), (after, 0), "\n")))
             if label:
                 if label in seen:
                     add(t.map[0], "MD024", INFO,

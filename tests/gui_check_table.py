@@ -16,7 +16,8 @@ sys.path.insert(0, '.')
 os.environ['APPDATA'] = tempfile.mkdtemp(prefix='md_appdata_')
 import webview
 import clipboard
-import mdeditor
+import mdeditor
+import gui_nodialog  # noqa: F401  OS のダイアログを出さない（キー入力を奪うため）
 
 TSV = "月\t売上\t備考\r\n一月\t1,234\t好調\r\n二月\t987\t\r\n"
 tmp = tempfile.mkdtemp()
