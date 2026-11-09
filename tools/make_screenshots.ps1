@@ -22,7 +22,7 @@ if (Get-Process $app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq 
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("mdshot_" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $sample = Join-Path $tmp 'sample'
 New-Item -ItemType Directory $sample -Force | Out-Null
-Copy-Item (Join-Path $root 'docs\sample\*.md') $sample
+Copy-Item (Join-Path $root 'docs\sample\*') $sample -Recurse    # sub-folders too (the list shows the tree)
 # the main sample document: the file whose name starts with U+306F (the hiragana letter HA: the introduction page)
 $main = Get-ChildItem $sample -Filter *.md | Where-Object { $_.Name.StartsWith([string][char]0x306F) } | Select-Object -First 1
 if (-not $main) { throw 'No sample file whose name starts with U+306F (docs\sample).' }
