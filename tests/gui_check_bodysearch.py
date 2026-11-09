@@ -61,23 +61,29 @@ def drive():
     time.sleep(8)
     wait("typeof bodyOn === 'function'")
     js("loadFolder(%s)" % json.dumps(tmp))
-    wait("document.querySelectorAll('#list .item').length === 3")
+    wait("document.querySelectorAll('#list .item').length === 2")
     check("初めは「本文を探す」は切れている", js("[document.getElementById('bodySearch').checked, document.getElementById('bodyOpts').hidden]"), [False, True])
 
     js("document.getElementById('bodySearch').click()")
     set_query('漏水')
     check("本文を探す: ファイルごとの結果", wait("document.querySelectorAll('#list .shead').length === 2"), True)
-    check("ファイル名と、一致した行の数", heads(), ['a.md:2 行', 'sub/b.md:1 行'])
-    check("行番号と一致", js("[...document.querySelectorAll('#list .shit')].map(r => r.querySelector('.sln').textContent + '|' + r.querySelector('mark').textContent)"), ['3|漏水', '7|漏水', '2|漏水'])
+    check("ファイル名と、一致した行の数", heads(), ['b.md:1 行', 'a.md:2 行'])
+    check("本文検索の結果も、フォルダーごとにまとめる（サブフォルダーが先）", js("[...document.querySelectorAll('#list > div')].map(r => r.classList.contains('dirrow') ? 'D:' + r.querySelector('.dname').textContent.replace('📁 ', '') + '(' + r.querySelector('.dcnt').textContent + ')' : r.classList.contains('shead') ? 'F:' + r.firstChild.textContent : null).filter(x => x)"), ['D:sub(1)', 'F:b.md', 'F:a.md'])
+    check("本文検索でも、「すべて開く・閉じる」が使える", js("document.getElementById('treeBtns').hidden"), False)
+    js("document.getElementById('treeClose').click()")
+    check("「すべて閉じる」で、フォルダーが畳まれる（探した結果は、そのまま）", js("[document.querySelectorAll('#list .dirrow[aria-expanded=false]').length, document.querySelectorAll('#list .shead').length, document.getElementById('count').textContent.includes('2 ファイル')]"), [1, 1, True])
+    js("document.getElementById('treeOpen').click()")
+    check("「すべて開く」で、また開く", js("document.querySelectorAll('#list .shead').length"), 2)
+    check("行番号と一致", js("[...document.querySelectorAll('#list .shit')].map(r => r.querySelector('.sln').textContent + '|' + r.querySelector('mark').textContent)"), ['2|漏水', '3|漏水', '7|漏水'])
 
     # --- 行へ移る: ファイルを開いて、その行の、一致した文字を選ぶ
-    js("document.querySelectorAll('#list .shit')[1].click()")
+    js("document.querySelectorAll('#list .shit')[2].click()")
     check("2つ目の一致（7行目）を押すと、a.md が開く", wait("doc.path === %s" % json.dumps(A)), True)
     check("その行の、一致した文字（漏水）が、選ばれる", wait("cm.getSelection() === '漏水' && cm.getCursor('from').line === 6"), True)
     check("編集欄に焦点が移る", js("cm.hasFocus()"), True)
-    js("document.querySelectorAll('#list .shit')[0].click()")
+    js("document.querySelectorAll('#list .shit')[1].click()")
     check("同じファイルの別の行へも、そのまま移る（開き直さない）", wait("cm.getCursor('from').line === 2 && cm.getSelection() === '漏水'"), True)
-    js("document.querySelectorAll('#list .shit')[2].click()")
+    js("document.querySelectorAll('#list .shit')[0].click()")
     check("ほかのファイル（sub/b.md）の行を押すと、そのファイルが開く", wait("doc.path === %s && cm.getSelection() === '漏水' && cm.getCursor('from').line === 1" % json.dumps(B)), True)
     check("選ばれる範囲は、一致の桁から（行の途中でも）", js("cm.getCursor('from').ch"), 0)
     check("一致した文字に、目立つ黄色の印が付く（1つだけ。前のファイルの印は残らない）",
@@ -104,7 +110,7 @@ def drive():
     js("cm.replaceRange('x', {line: 0, ch: 0}); null")
     js("window._ask = ask; window._asked = []; ask = async (t, x, b) => { window._asked.push(t); return 2; }; null")      # キャンセル
     set_query('設計')
-    wait("[...document.querySelectorAll('#list .shead')].map(h => h.firstChild.textContent).join() === 'sub/b.md'")
+    wait("[...document.querySelectorAll('#list .shead')].map(h => h.firstChild.textContent).join() === 'b.md'")
     js("document.querySelector('#list .shit').click()")
     time.sleep(.8)
     check("確認を出す（保存するか）", js("window._asked"), ['変更を保存しますか？'])
@@ -126,7 +132,7 @@ def drive():
     # --- 切ると、ファイル一覧に戻る
     js("document.getElementById('bodySearch').click()")
     set_query('')
-    check("「本文を探す」を切ると、ファイルの一覧に戻る", wait("document.querySelectorAll('#list .item').length === 3 && document.getElementById('bodyOpts').hidden"), True)
+    check("「本文を探す」を切ると、ファイルの一覧に戻る", wait("document.querySelectorAll('#list .item').length === 2 && document.getElementById('bodyOpts').hidden"), True)
 
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False

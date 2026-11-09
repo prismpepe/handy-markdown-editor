@@ -61,7 +61,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #side { width: 260px; min-width: 160px; background: var(--side);
   border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 #side.hidden { display: none; }
-#side h2 { margin: 0; padding: 8px 10px 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+#side h2 { margin: 0; padding: 8px 10px 0; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #folder { padding: 4px 10px 6px; color: var(--muted); font-size: 12px; word-break: break-all;
   border-bottom: 1px solid var(--border); }
 #filter { margin: 8px; padding: 5px 8px; font: inherit; color: var(--fg); background: var(--bg);
@@ -69,7 +69,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #count { padding: 0 10px 4px; color: var(--muted); font-size: 12px; }
 #list { flex: 1; overflow-y: auto; }
 /* フォルダー全体の検索（本文）: 「本文を探す」の切替と、結果の一覧 */
-#bodyRow { display: flex; align-items: center; gap: 10px; padding: 0 10px 4px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+#bodyRow { display: flex; align-items: center; gap: 10px; padding: 6px 10px 0; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
 #bodyRow label { white-space: nowrap; cursor: pointer; } #bodyRow span[hidden] { display: none; }
 .shead { padding: 6px 10px 2px; font-weight: 600; font-size: 13px; cursor: pointer; word-break: break-all; border-top: 1px solid var(--border); }
 .shead:first-child { border-top: 0; } .shead:hover { background: var(--sel); }
@@ -84,7 +84,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 .dirrow .chev { display: inline-block; width: 1em; color: var(--muted); flex: none; }
 .dirrow .dname { word-break: break-all; }
 .dirrow .dcnt { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: auto; padding-left: 6px; flex: none; }
-#treeBtns { display: flex; gap: 6px; padding: 0 10px 4px; }
+#treeBtns { display: flex; gap: 6px; font-weight: 400; }
 #treeBtns[hidden] { display: none; }
 #treeBtns button { font-size: 11px; padding: 0 6px; }
 .item { padding: 4px 10px; cursor: pointer; border-left: 3px solid transparent; word-break: break-all; }
@@ -448,9 +448,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 <div id="msg" hidden></div>
 <div id="body">
   <aside id="side">
-    <h2>フォルダー</h2>
+    <h2><span>フォルダー</span><span id="treeBtns" hidden><button id="treeOpen" title="一覧のフォルダを、すべて開きます（本文検索の結果でも使えます）">すべて開く</button><button id="treeClose" title="一覧のフォルダを、すべて閉じます（本文検索の結果でも使えます）">すべて閉じる</button></span></h2>
     <div id="folder">未選択（「フォルダーを開く」で選びます）</div>
-    <input id="filter" type="search" placeholder="🔍 ファイル名で絞り込み">
     <div id="bodyRow">
       <label title="ファイル名ではなく、ファイルの中身（本文）を、フォルダー全体から探します"><input id="bodySearch" type="checkbox"> 本文を探す</label>
       <span id="bodyOpts" hidden>
@@ -458,8 +457,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
         <label title="正規表現で探します（1行ずつ）"><input id="bsRe" type="checkbox"> .*</label>
       </span>
     </div>
+    <input id="filter" type="search" placeholder="🔍 ファイル名で絞り込み">
     <div id="count"></div>
-    <div id="treeBtns" hidden><button id="treeOpen" title="すべてのフォルダを開きます">すべて開く</button><button id="treeClose" title="すべてのフォルダを閉じます">すべて閉じる</button></div>
     <div id="list"></div>
   </aside>
   <div id="main">
@@ -1445,22 +1444,24 @@ async function requestClose() {
 // ---- 一覧の階層表示: フォルダ行（▸／▾）を押すと、そのフォルダの中を開閉する
 // 初めは、直下のフォルダだけ開く（深いものは閉じる）。開いたファイルのあるフォルダは、そのファイルを開いたときに自動で開く
 // （そのあと自分で閉じたものは、閉じたまま）。絞り込み中は、これまでどおり、平らに並べる。
-const tree = { root: null, open: new Map(), revealed: null };
-function buildTree(rels) {
+const tree = { root: null, open: new Map(), sopen: new Map(), revealed: null, smode: '', search: false, paths: [] };
+function buildTree(items) {                         // items: [{ rel, ... }]
   const root = { dirs: new Map(), files: [], count: 0 };
-  for (const rel of rels) {
-    const parts = rel.split('/'), name = parts.pop();
+  for (const it of items) {
+    const parts = it.rel.split('/'), name = parts.pop();
     let node = root, path = ''; node.count++;
     for (const p of parts) {
       path = path ? path + '/' + p : p;
       if (!node.dirs.has(p)) node.dirs.set(p, { name: p, path, dirs: new Map(), files: [], count: 0 });
       node = node.dirs.get(p); node.count++;
     }
-    node.files.push({ rel, name });
+    node.files.push({ ...it, name });
   }
   return root;
 }
-const treeIsOpen = (path, depth) => tree.open.has(path) ? tree.open.get(path) : depth === 0;
+// 通常の一覧は、初めはすべて閉じる（開いた文書のフォルダだけ開く）。絞り込み・本文検索の結果は、初めはすべて開く（どのフォルダの文書かを見せるため）。
+const treeIsOpen = path => tree.search ? (tree.sopen.has(path) ? tree.sopen.get(path) : true) : tree.open.get(path) === true;
+const treeMap = () => tree.search ? tree.sopen : tree.open;
 function treeDirPaths(rels) {
   const s = new Set();
   for (const rel of rels) { const parts = rel.split('/'); parts.pop(); let p = ''; for (const x of parts) { p = p ? p + '/' + x : x; s.add(p); } }
@@ -1475,12 +1476,18 @@ function treeRevealCurrent() {
   const parts = rel.split('/'); parts.pop();
   let p = ''; for (const x of parts) { p = p ? p + '/' + x : x; tree.open.set(p, true); }
 }
-function renderTreeNode(list, node, depth) {
-  // 各フォルダの中は、そのフォルダ直下のファイルが先、サブフォルダが後（階層表示にする前の並びと同じ）
-  for (const f of node.files) list.appendChild(fileItem(f.rel, f.name, false, 10 + depth * 14));
+// 一覧の見せ方（mode: ''=通常、'f'=名前の絞り込み、'b'=本文検索）を決める。見せ方が変わったら、結果の開閉は初めに戻す
+function treeSetup(mode, rels) {
+  tree.search = mode !== '';
+  if (tree.smode !== mode) { tree.sopen.clear(); tree.smode = mode; }
+  tree.paths = treeDirPaths(rels);
+  $('treeBtns').hidden = !tree.paths.length;
+}
+// 各フォルダの中は、サブフォルダが先、ファイルが後（エクスプローラと同じ）。leaf は、ファイルの行（本文検索では、一致の行も）を作る
+function renderTreeNode(list, node, depth, leaf) {
   const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
   for (const d of dirs) {
-    const open = treeIsOpen(d.path, depth);
+    const open = treeIsOpen(d.path);
     const row = document.createElement('div'); row.className = 'dirrow';
     row.setAttribute('role', 'treeitem'); row.setAttribute('aria-expanded', open ? 'true' : 'false');
     row.style.paddingLeft = (8 + depth * 14) + 'px'; row.dataset.dir = d.path; row.title = d.path;
@@ -1488,10 +1495,11 @@ function renderTreeNode(list, node, depth) {
     const nm = document.createElement('span'); nm.className = 'dname'; nm.textContent = '📁 ' + d.name;
     const ct = document.createElement('span'); ct.className = 'dcnt'; ct.textContent = d.count;
     row.append(ch, nm, ct);
-    row.onclick = () => { tree.open.set(d.path, !open); renderList(); };
+    row.onclick = () => { treeMap().set(d.path, !open); renderList(); };
     list.appendChild(row);
-    if (open) renderTreeNode(list, d, depth + 1);
+    if (open) renderTreeNode(list, d, depth + 1, leaf);
   }
+  for (const f of node.files) leaf(list, f, depth);
 }
 function fileItem(rel, label, showDir, indent) {
   const full = folder + '\\' + rel.replace(/\//g, '\\');
@@ -1511,9 +1519,10 @@ function fileItem(rel, label, showDir, indent) {
   });
   return div;
 }
-$('treeOpen').onclick = () => { for (const p of treeDirPaths(files)) tree.open.set(p, true); renderList(); };
-$('treeClose').onclick = () => { for (const p of treeDirPaths(files)) tree.open.set(p, false); renderList(); };
+$('treeOpen').onclick = () => { const m = treeMap(); for (const p of tree.paths) m.set(p, true); renderList(); };
+$('treeClose').onclick = () => { const m = treeMap(); for (const p of tree.paths) m.set(p, false); renderList(); };
 function renderList() {
+  if (tree.root !== folder) { tree.root = folder; tree.open.clear(); tree.sopen.clear(); tree.revealed = null; }
   if (bodyOn()) { renderBodyResults(); return; }
   const q = $('filter').value.trim().toLowerCase();
   const shown = files.filter(f => f.toLowerCase().includes(q));
@@ -1521,15 +1530,9 @@ function renderList() {
   $('count').style.color = listTruncated ? '#cf222e' : '';
   $('count').title = listTruncated ? '大きなフォルダーなので、一覧は途中までです。もっと下のフォルダーを選ぶと、全部を出せます' : '';
   const list = $('list'); list.textContent = '';
-  if (tree.root !== folder) { tree.root = folder; tree.open.clear(); tree.revealed = null; }
-  const hasDirs = shown.some(r => r.includes('/'));
-  $('treeBtns').hidden = !!q || !hasDirs;
-  if (q || !hasDirs) {                       // 絞り込み中（と、サブフォルダが無いとき）: 平らに並べ、フォルダ名は小さく添える
-    for (const rel of shown) { const i = rel.lastIndexOf('/'); list.appendChild(fileItem(rel, i < 0 ? rel : rel.slice(i + 1), !!q, 0)); }
-    return;
-  }
-  treeRevealCurrent();
-  renderTreeNode(list, buildTree(shown), 0);
+  treeSetup(q ? 'f' : '', shown);
+  if (!q) treeRevealCurrent();
+  renderTreeNode(list, buildTree(shown.map(rel => ({ rel }))), 0, (l, f, depth) => l.appendChild(fileItem(f.rel, f.name, false, 10 + depth * 14)));
 }
 let listTruncated = false;      // 一覧が、時間か件数の上限で途中までのとき true
 async function loadFolder(path) {
@@ -2217,27 +2220,31 @@ function renderBodyResults() {
   c.textContent = d.total ? `${d.files} ファイル / ${d.total} 行が一致` : '一致する行は、見つかりませんでした';
   if (d.truncated) { c.textContent += '（途中まで）'; c.title = d.reason; c.style.color = '#cf222e'; }
   else if (d.skipped) { c.title = `読めなかった・大きすぎるファイルが ${d.skipped} 件あります（探していません）`; }
-  for (const f of d.results) {
+  treeSetup('b', d.results.map(f => f.rel));
+  renderTreeNode(list, buildTree(d.results), 0, (l, f, depth) => {
     const head = document.createElement('div'); head.className = 'shead'; head.title = f.rel;
-    head.append(f.rel.includes('/') ? f.rel : f.rel);
+    head.style.paddingLeft = (10 + depth * 14) + 'px';
+    head.append(f.name);
     const cnt = document.createElement('span'); cnt.className = 'scnt'; cnt.textContent = f.count + ' 行'; head.appendChild(cnt);
     head.onclick = () => openHit(f.rel, null);
-    list.appendChild(head);
+    l.appendChild(head);
     for (const h of f.hits.slice(0, SHOW_HITS)) {
       const row = document.createElement('div'); row.className = 'shit';
+      row.style.paddingLeft = (14 + depth * 14) + 'px';
       const ln = document.createElement('span'); ln.className = 'sln'; ln.textContent = (h.line + 1);
       const tx = document.createElement('span'); tx.appendChild(markedSnippet(h));
       row.append(ln, tx);
       row.onclick = () => openHit(f.rel, h);
-      list.appendChild(row);
+      l.appendChild(row);
     }
     if (f.count > Math.min(SHOW_HITS, f.hits.length)) {
       const more = document.createElement('div'); more.className = 'smore';
+      more.style.paddingLeft = (14 + depth * 14) + 'px';
       more.textContent = `…ほか ${f.count - Math.min(SHOW_HITS, f.hits.length)} 行（ファイルを開いて、探せます）`;
       more.onclick = () => openHit(f.rel, null);
-      list.appendChild(more);
+      l.appendChild(more);
     }
-  }
+  });
 }
 function initBodySearch() {
   const sync = () => {
