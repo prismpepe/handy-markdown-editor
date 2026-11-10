@@ -52,9 +52,6 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 .seg button { border-radius: 0; margin-left: -1px; }
 .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .seg button:last-child { border-radius: 0 6px 6px 0; }
-#zoombox { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; }
-#zoombox button { padding: 5px 9px; min-width: 32px; }
-#zoombox input { width: 62px; text-align: right; }
 
 #msg { color: var(--danger); padding: 6px 12px; border-bottom: 1px solid var(--border); }
 #body { flex: 1; min-height: 0; display: flex; }
@@ -105,26 +102,32 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #previewPane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #pscroll { flex: 1; overflow: auto; }
 #preview { padding: 16px 24px 64px; }
-#fmt { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 10px; padding: 5px 6px 6px;
-  background: var(--bg); border-bottom: 1px solid var(--border); }
-#fmt button { min-width: 30px; padding: 3px 6px; white-space: nowrap; }
-#fmt select { padding: 3px 4px; }
-#fmt #fImage { width: 92px; }
-#fmt #fDiagram { width: 104px; }
-#fmt #fMath { width: 95px; }
-#fmt #fHead { width: 84px; }                        /* 見出しの段階を選ぶだけなので、細くする */
-/* 行の区切り（1行目＝標準の書式、2行目＝目次・データ・編集、3行目＝拡張の挿入）。高さ0で、行を強制的に改める */
-#fmt .frowbreak { flex: 0 0 100%; height: 0; margin: -6px 0 0; }
-#fmt { container-type: inline-size; }
-@container (min-width: 1000px) { #fmt .frowbreak { display: none; } }   /* 広い編集欄（編集のみの表示など）では、行を強制せず、入るだけ並べる */
-#fmt #fSnip { min-width: 0; padding: 3px 3px; }      /* 3画面の編集バーに、段を増やさず収めるため、細くする */
-/* ボタンは、用途ごとのグループにまとめ、グループの名前を上に小さく出す。折り返すときは、グループ単位（途中では割れない） */
-#fmt .fgroup { display: flex; flex-direction: column; gap: 3px; flex: none; max-width: 100%; }
-#fmt .glabel { font-size: 10px; line-height: 1; color: var(--muted); padding-left: 2px; white-space: nowrap; user-select: none; }
-/* グループの中のボタンは、ふだんは折り返さない。ただし、編集欄がグループより狭くなったときは、グループの中で折り返す
-   （折り返さないと、ボタンが編集欄からはみ出して、プレビューの上に重なる） */
-#fmt .gbtns { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-#fmt select { max-width: 100%; }
+/* 編集ボタンは、編集欄の左に縦に並べる（編集・書式・リスト・ブロックの順）。高さが足りなければ 2 列にし（fitRail）、それでも足りなければ、この列の中だけスクロールする */
+#edwrap { flex: 1; min-height: 0; display: flex; }
+#edbox { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#fmt { flex: none; min-width: 50px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 5px 4px; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin;
+  background: var(--bg); border-right: 1px solid var(--border); }
+#fmt button { min-width: 30px; height: 26px; padding: 0 3px; white-space: nowrap; }
+#fmt .fgroup { display: flex; flex-direction: column; gap: 3px; }
+/* グループの名前は、背景より暗い帯に、濃い文字で出す（背景に埋もれて、見分けにくかったため） */
+#fmt .glabel { font-size: 11px; font-weight: 600; line-height: 1.25; text-align: center; color: var(--fg); background: var(--border); border-radius: 4px; padding: 2px 2px; white-space: nowrap; user-select: none; }
+#fmt .gbtns { display: grid; grid-template-columns: 30px; gap: 3px; justify-content: center; }
+#fmt.two .gbtns { grid-template-columns: 30px 30px; }
+#fmt [data-h] { font-size: 12px; font-weight: 600; }
+/* 各ペインの見出しは 1 行。編集は「挿入」の選択欄とボタン、プレビューは倍率・印刷・HTML を、右に置く */
+#fImage { width: 92px; }
+#fDiagram { width: 104px; }
+#fMath { width: 95px; }
+.pane-title .hbtns { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px; margin-left: auto; }
+.pane-title button, .pane-title select, .pane-title input { height: 26px; box-sizing: border-box; color: var(--fg); }
+.pane-title button { padding: 0 8px; }
+.pane-title select { padding: 0 4px; }
+/* 編集の見出しが狭いとき（3画面の狭い窓など）は、定型文・目次・表・データを、アイコンだけにして、1 行に収める */
+#ehead { container-type: inline-size; }
+@container (max-width: 650px) { #ehead .bl { display: none; } }
+#zoombox { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+#zoombox button { min-width: 28px; padding: 0 7px; }
+#zoombox input { width: 54px; text-align: right; padding: 0 4px; }
 #find { padding: 6px 8px; background: var(--side); border-bottom: 1px solid var(--border); }
 #find .frow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 #find .frow + .frow { margin-top: 6px; }
@@ -144,8 +147,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #ctx .citem:hover:not(:disabled) { background: var(--sel); }
 #ctx .ckey { color: var(--muted); font-size: 12px; }
 #ctx .csep { height: 1px; background: var(--border); margin: 4px 2px; }
-.pane-title { padding: 3px 12px; font-size: 12px; color: var(--muted); background: var(--side);
-  border-bottom: 1px solid var(--border); }
+.pane-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 36px; box-sizing: border-box; padding: 3px 8px 3px 12px;
+  font-size: 12px; color: var(--muted); background: var(--side); border-bottom: 1px solid var(--border); }
 
 #status { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 3px 12px;
   background: var(--side); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
@@ -156,7 +159,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 /* CodeMirror をアプリの配色に合わせる */
 .CodeMirror { flex: 1; height: auto; min-height: 0; background: var(--bg); color: var(--fg);
   font: var(--ed-size)/1.65 var(--edit-font); }
-#editorPane .CodeMirror { height: 100%; }
+#edbox .CodeMirror { height: 100%; }
 .CodeMirror-gutters { background: var(--side); border-right: 1px solid var(--border); }
 .CodeMirror-linenumber { color: var(--muted); }
 .CodeMirror-cursor { border-left: 2px solid var(--fg); }
@@ -422,8 +425,6 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
   <span class="sep"></span>
   <button id="bSave" title="Ctrl+S">💾 保存</button>
   <button id="bSaveAs" title="Ctrl+Shift+S">名前を付けて保存</button>
-  <button id="bPrint" title="Ctrl+P">🖨 印刷／PDF</button>
-  <button id="bHtml" title="いま書いている文書を、1つで完結する HTML ファイルに書き出す（図・グラフ・数式も入ります）">🌐 HTML</button>
   <span class="sep"></span>
   <button id="bReload" title="F5">↻ 更新</button>
   <button id="btnFont" title="表示フォントの設定">🔤 フォント</button>
@@ -435,15 +436,6 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <button id="vEdit" title="編集だけを広く表示する (Ctrl+3)">編集のみ</button>
     <button id="vPrev" title="プレビューだけを広く表示する (Ctrl+4)">プレビューのみ</button>
   </span></span>
-  <span class="sep"></span>
-  <span id="zoombox" class="group">
-    <span class="label">プレビュー倍率</span>
-    <button id="zOut" title="縮小">−</button>
-    <input id="zVal" type="number" min="10" max="500" step="5" value="100" title="倍率(%)を直接入力">%
-    <button id="zIn" title="拡大">＋</button>
-    <button id="z100" title="等倍">100%</button>
-    <button id="zFit" title="プレビューを横幅いっぱいに収める (Ctrl+9)">↔ 全体表示</button>
-  </span>
 </div>
 <div id="msg" hidden></div>
 <div id="body">
@@ -465,75 +457,20 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div id="top"><span id="navbtns"><button id="btnBack" title="戻る (Alt+Shift+←)" disabled>◀</button><button id="btnFwd" title="進む (Alt+Shift+→)" disabled>▶</button></span><span id="title">無題</span></div>
     <div id="panes">
       <div id="editorPane">
-        <div class="pane-title">編集</div>
-        <div id="fmt" role="toolbar" aria-label="編集ボタン">
-          <span class="fgroup" role="group" aria-label="書式">
-            <span class="glabel">書式</span>
-            <span class="gbtns">
-              <select id="fHead" title="見出しの段階を選ぶ（同じ段階をもう一度選ぶと本文に戻る）">
-                <option value="">見出し</option>
-                <option value="1">見出し1（大）</option><option value="2">見出し2</option>
-                <option value="3">見出し3</option><option value="4">見出し4</option>
-                <option value="5">見出し5</option><option value="6">見出し6（小）</option>
-                <option value="0">本文に戻す</option>
-              </select>
-              <button data-f="bold" title="太字 (Ctrl+B)"><b>B</b></button>
-              <button data-f="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
-              <button data-f="strike" title="取り消し線"><s>S</s></button>
-              <button data-f="code" title="コード (Ctrl+E)">&lt;/&gt;</button>
-              <button data-f="link" title="リンク (Ctrl+K)">🔗</button>
-            </span>
-          </span>
-          <span class="fgroup" role="group" aria-label="編集">
-            <span class="glabel">編集</span>
-            <span class="gbtns">
-              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
-              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
-              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
-              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
-              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
-              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
-              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
-            </span>
-          </span>
-          <span class="frowbreak" aria-hidden="true"></span>
-          <span class="fgroup" role="group" aria-label="リスト・ブロック">
-            <span class="glabel">リスト・ブロック</span>
-            <span class="gbtns">
-              <button data-f="ul" title="箇条書き">• ≡</button>
-              <button data-f="ol" title="番号付きリスト">1.≡</button>
-              <button data-f="task" title="チェックリスト">☑</button>
-              <button data-f="quote" title="引用">❝</button>
-              <button data-f="codeblock" title="コードブロック">{ }</button>
-              <button data-f="rule" title="区切り線">―</button>
-              <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)" aria-label="画像">🖼</button>
-              <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)" aria-label="表">▦</button>
-            </span>
-          </span>
-          <span class="fgroup" role="group" aria-label="目次・データ">
-            <span class="glabel">目次・データ</span>
-            <span class="gbtns">
-              <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑 目次</button>
-              <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊 表・データ</button>
-            </span>
-          </span>
-          <span class="frowbreak" aria-hidden="true"></span>
-          <span class="fgroup" role="group" aria-label="挿入（拡張）">
-            <span class="glabel">挿入（拡張）</span>
-            <span class="gbtns">
-              <select id="fImage" title="画像ファイルを選んで、文書へ入れる。パスで参照する書き方（画像ファイルが別に要る）と、Base64 で文書の中へ埋め込む書き方（Markdown ファイル1つで配布できる）を選べる">
+        <div class="pane-title" id="ehead"><span class="ptitle">編集画面</span><span class="hbtns" role="toolbar" aria-label="挿入">
+          <select id="fImage" title="画像ファイルを選んで、文書へ入れる。パスで参照する書き方（画像ファイルが別に要る）と、Base64 で文書の中へ埋め込む書き方（Markdown ファイル1つで配布できる）を選べる">
                 <option value="">画像の挿入…</option>
                 <option value="ref">画像をパスで挿入</option>
                 <option value="pick">画像を Base64 で挿入</option>
                 <option value="all">全画像を Base64 に変換</option>
                 <option value="back">Base64 画像をファイルに復元</option>
               </select>
-              <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
-              <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
-              <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩 定型文</button>
-            </span>
-          </span>
-        </div>
+          <select id="fDiagram" title="Mermaid の図と Vega-Lite のグラフ（チャート）を、ひな形から挿入する"><option value="">チャートを挿入…</option></select>
+          <select id="fMath" title="数式（TeX）を挿入する。文字を選んでいれば、その文字を数式にする"><option value="">数式を挿入…</option></select>
+          <button id="fSnip" title="定型文（スニペット）を、カーソルの位置へ挿入する。文字を選んでいれば、その文字を使う">🧩<span class="bl"> 定型文</span></button>
+          <button id="fToc" title="見出しから目次（内部リンク）を作る。&lt;!-- toc --&gt; の間にあれば、作り直す">📑<span class="bl"> 目次</span></button>
+          <button id="fTable" title="Excel のセルや CSV・JSON のファイルから、Markdown の表や JSON データ（Vega-Lite 用）を作る">📊<span class="bl"> 表・データ</span></button>
+        </span></div>
         <div id="find" hidden>
           <div class="frow">
             <input id="fq" type="text" placeholder="検索する文字列" spellcheck="false">
@@ -553,7 +490,54 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
             <span class="hint">正規表現のときは $1 や $& が使えます</span>
           </div>
         </div>
+        <div id="edwrap">
+        <div id="fmt" role="toolbar" aria-label="編集ボタン">
+          <span class="fgroup" role="group" aria-label="編集">
+            <span class="glabel" title="編集（元に戻す・切り取り・コピー・貼り付け・検索・置換）">編集</span>
+            <span class="gbtns">
+              <button data-e="undo" title="元に戻す (Ctrl+Z)">↶</button>
+              <button data-e="redo" title="やり直し (Ctrl+Y)">↷</button>
+              <button data-e="cut" title="切り取り (Ctrl+X)">✂</button>
+              <button data-e="copy" title="コピー (Ctrl+C)">⧉</button>
+              <button data-e="paste" title="貼り付け (Ctrl+V)">📋</button>
+              <button data-e="find" title="検索 (Ctrl+F)">🔍</button>
+              <button data-e="replace" title="置換 (Ctrl+H)">⇄</button>
+            </span>
+          </span>
+          <span class="fgroup" role="group" aria-label="書式">
+            <span class="glabel" title="書式（H1〜H6 は見出しの段階。同じ段階をもう一度押すと本文に戻る）">書式</span>
+            <span class="gbtns">
+              <button data-h="1" title="見出し1（大）">H1</button>
+              <button data-h="2" title="見出し2">H2</button>
+              <button data-h="3" title="見出し3">H3</button>
+              <button data-h="4" title="見出し4">H4</button>
+              <button data-h="5" title="見出し5">H5</button>
+              <button data-h="6" title="見出し6（小）">H6</button>
+              <button data-f="bold" title="太字 (Ctrl+B)"><b>B</b></button>
+              <button data-f="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+              <button data-f="strike" title="取り消し線"><s>S</s></button>
+              <button data-f="code" title="コード (Ctrl+E)">&lt;/&gt;</button>
+              <button data-f="link" title="リンク (Ctrl+K)">🔗</button>
+              <button data-f="image" title="画像 (![説明](パス) の書き方を、カーソルの位置に入れる)" aria-label="画像">🖼</button>
+            </span>
+          </span>
+          <span class="fgroup" role="group" aria-label="ブロック">
+            <span class="glabel" title="ブロック（箇条書き・番号付きリスト・チェックリスト・引用・コードブロック・区切り線・表）">ブロック</span>
+            <span class="gbtns">
+              <button data-f="ul" title="箇条書き">• ≡</button>
+              <button data-f="ol" title="番号付きリスト">1.≡</button>
+              <button data-f="task" title="チェックリスト">☑</button>
+              <button data-f="quote" title="引用">❝</button>
+              <button data-f="codeblock" title="コードブロック">{ }</button>
+              <button data-f="rule" title="区切り線">―</button>
+              <button data-f="table" title="表 (空の表のひな形を、カーソルの位置に入れる)" aria-label="表">▦</button>
+            </span>
+          </span>
+        </div>
+        <div id="edbox">
         <textarea id="ed"></textarea>
+        </div>
+        </div>
         <div id="lintPanel" hidden>
           <div id="lintHead">
             <b>問題</b><span id="lintCount"></span>
@@ -567,7 +551,11 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       </div>
       <div id="split" title="ドラッグで幅を変える"></div>
       <div id="previewPane">
-        <div class="pane-title">プレビュー</div>
+        <div class="pane-title" id="phead"><span class="ptitle">プレビュー画面</span><span class="hbtns">
+          <span id="zoombox"><button id="zOut" title="縮小">−</button><input id="zVal" type="number" min="10" max="500" step="5" value="100" title="倍率(%)を直接入力">%<button id="zIn" title="拡大">＋</button><button id="z100" title="等倍">100%</button></span>
+          <button id="bPrint" title="Ctrl+P">🖨 印刷／PDF</button>
+          <button id="bHtml" title="いま書いている文書を、1つで完結する HTML ファイルに書き出す（図・グラフ・数式も入ります）">🌐 HTML</button>
+        </span></div>
         <div id="pscroll"><div id="preview"></div></div>
       </div>
     </div>
@@ -765,7 +753,6 @@ async function updatePreview(resetScroll) {
   pv.scrollTop = keep;
   if (resetScroll) { followCursor = false; pv.scrollTop = 0; }
   else if (followCursor) { followCursor = false; previewToCursor(); }
-  if (fitMode) fitWidth();
   previewSettled = Promise.all([mathDone, renderDiagrams(seq), renderVega(seq)]).catch(() => {});      // HTML の書き出しが、描画の完了を待つために使う
 }
 
@@ -857,7 +844,6 @@ async function renderDiagrams(seq) {
       d.replaceWith(box); box.appendChild(p); box.appendChild(pre);
     }
   }
-  if (fitMode) fitWidth();
 }
 
 // ---- Vega-Lite のグラフ（```vega-lite のコードブロック）
@@ -922,7 +908,6 @@ async function renderVega(seq) {
       d.replaceWith(box); box.appendChild(p); box.appendChild(pre);
     }
   }
-  if (fitMode) fitWidth();
 }
 // 別のアプリでデータファイルを直したあと、戻ってきたときに描き直す
 window.addEventListener('focus', () => {
@@ -958,24 +943,25 @@ function previewToCursor() {                   // 打鍵中は、書いている
 }
 
 // ---- プレビューの倍率
-let zoom = 1, fitMode = false;
+let zoom = 1;
 const Z_MIN = 0.1, Z_MAX = 5;
-function setZoom(z, fit) {
-  zoom = Math.min(Z_MAX, Math.max(Z_MIN, z)); fitMode = !!fit;
+function setZoom(z) {
+  zoom = Math.min(Z_MAX, Math.max(Z_MIN, z));
   $('preview').style.zoom = zoom;
   $('zVal').value = Math.round(zoom * 100);
-  $('zFit').classList.toggle('active', fitMode);
   savePrefsSoon();
 }
-const overflowing = () => $('pscroll').scrollWidth > $('pscroll').clientWidth + 1;
-function fitWidth() {
-  setZoom(1, true);
-  if (!overflowing()) return;
-  let lo = Z_MIN, hi = 1;
-  for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; $('preview').style.zoom = mid; if (overflowing()) hi = mid; else lo = mid; }
-  setZoom(lo, true);
+// 編集ボタンの縦の列は、高さが足りなければ 2 列にする（それでも足りなければ、列の中だけスクロールする）
+function fitRail() {
+  const r = $('fmt'); if (!r || !r.clientHeight) return;
+  const was = r.classList.contains('two');
+  r.classList.remove('two');
+  const need = r.scrollHeight > r.clientHeight + 1;
+  r.classList.toggle('two', need);
+  if (need !== was && typeof cm !== 'undefined' && cm) cm.refresh();
 }
-const zoomBy = f => setZoom(Math.round(zoom * f * 100) / 100, false);
+if (window.ResizeObserver) new ResizeObserver(() => fitRail()).observe($('edwrap'));
+const zoomBy = f => setZoom(Math.round(zoom * f * 100) / 100);
 
 // ---- 設定（フォント・前回の状態の復元）
 let prefsReady = false, prefsTimer = null;
@@ -1054,14 +1040,13 @@ function applyFonts() {
   svgCache.clear(); vegaCache.clear();          // 図の文字が変わるので、描いたものの記憶は使えない
   if (window.mermaid) window.mermaid.initialize(mermaidConfig());
   if (typeof cm !== 'undefined' && cm) cm.refresh();    // 文字の幅が変わるので、編集欄の寸法を測り直す
-  if (fitMode) fitWidth();
 }
 
 function savePrefsSoon() {              // 表示倍率は、変えたあと少し待ってまとめて保存する
   if (!prefsReady || !api) return;
   clearTimeout(prefsTimer);
   prefsTimer = setTimeout(() => {
-    prefs.zoom = { value: zoom, fit: fitMode };
+    prefs.zoom = { value: zoom, fit: false };
     api.set_prefs({ zoom: prefs.zoom });
   }, 400);
 }
@@ -1220,7 +1205,7 @@ document.addEventListener('keydown', e => {
 function applyDocMeta() {
   $('selEnc').value = doc.encoding; $('selNl').value = doc.newline;
   cm.setOption('readOnly', doc.readonly ? true : false);
-  document.querySelectorAll('#fmt [data-f], #fmt select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace], #fToc, #fTable, #fSnip').forEach(el => { el.disabled = doc.readonly; });
+  document.querySelectorAll('#fmt [data-f], #fmt [data-h], #ehead select, #fmt [data-e=cut], #fmt [data-e=paste], #fmt [data-e=replace], #fToc, #fTable, #fSnip').forEach(el => { el.disabled = doc.readonly; });
   if (typeof finder !== 'undefined' && finder) { $('rrow').hidden = $('rrow').hidden || doc.readonly; }
   updateEditButtons();
 }
@@ -2521,7 +2506,7 @@ function setView(mode) {
   for (const [id, m] of [['vTriple', 'triple'], ['vSplit', 'split'], ['vEdit', 'edit'], ['vPrev', 'preview']]) {
     $(id).classList.toggle('active', mode === m);
   }
-  cm.refresh(); if (fitMode) setTimeout(fitWidth, 0);
+  cm.refresh();
 }
 function toggleSide() {                 // Ctrl+\ : 一覧の表示／非表示（3画面 ⇄ 2画面）
   setView(prefs.view === 'triple' ? 'split' : 'triple');
@@ -2553,12 +2538,12 @@ function runFormat(fn) {
   cm.operation(fn); cm.focus();
 }
 function setupFormatBar() {
-  document.querySelectorAll('#fmt button').forEach(b => b.addEventListener('mousedown', e => e.preventDefault()));
+  document.querySelectorAll('#fmt button, #ehead button').forEach(b => b.addEventListener('mousedown', e => e.preventDefault()));
   document.querySelectorAll('#fmt button[data-f]').forEach(b => {
     b.addEventListener('click', () => runFormat(FORMAT_ACTIONS[b.dataset.f]));
   });
   setupEditBar();
-  $('fHead').onchange = () => { const v = $('fHead').value; $('fHead').value = ''; if (v !== '') runFormat(() => MdFormat.heading(cm, +v)); };
+  document.querySelectorAll('#fmt button[data-h]').forEach(b => b.addEventListener('click', () => runFormat(() => MdFormat.heading(cm, +b.dataset.h))));
   // チャートの選択欄は、種類ごとに分けて並べ、種類の間を横線（hr）で区切る
   const addGroup = (label, items, prefix) => {
     if ($('fDiagram').querySelector('optgroup')) $('fDiagram').appendChild(document.createElement('hr'));
@@ -2864,7 +2849,7 @@ window.addEventListener('pywebviewready', async () => {
     api.set_prefs({ fonts: prefs.fonts });
   }
   applyFonts();
-  if (prefs.zoom) setZoom(prefs.zoom.value, prefs.zoom.fit);
+  if (prefs.zoom) setZoom(prefs.zoom.value);
   if (prefs.layout_v !== 2) {          // 旧版: 「2画面」は編集とプレビュー、一覧は別のボタンで隠していた
     const old = prefs.view || 'split';
     prefs.view = old === 'split' ? (prefs.side_hidden ? 'split' : 'triple') : old;
@@ -2921,8 +2906,8 @@ $('filter').oninput = () => { if (bodyOn()) scheduleBodySearch(); else renderLis
 $('selEnc').onchange = () => { doc.encoding = $('selEnc').value; doc.metaDirty = true; updateDirty(); };
 $('selNl').onchange = () => { doc.newline = $('selNl').value; doc.metaDirty = true; updateDirty(); };
 $('zOut').onclick = () => zoomBy(1 / 1.1); $('zIn').onclick = () => zoomBy(1.1);
-$('z100').onclick = () => setZoom(1, false); $('zFit').onclick = fitWidth;
-$('zVal').onchange = () => { const v = parseFloat($('zVal').value); setZoom(isFinite(v) ? v / 100 : zoom, false); };
+$('z100').onclick = () => setZoom(1);
+$('zVal').onchange = () => { const v = parseFloat($('zVal').value); setZoom(isFinite(v) ? v / 100 : zoom); };
 
 $('pscroll').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
 $('editorPane').addEventListener('wheel', e => {
@@ -2955,14 +2940,14 @@ $('preview').addEventListener('click', async e => {
     };
     const up = () => {
       split.classList.remove('drag'); document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
-      api.set_prefs({ split: prefs.split }); if (fitMode) fitWidth();
+      api.set_prefs({ split: prefs.split });
     };
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
   });
 })();
 
 let resizeTimer = null;
-window.addEventListener('resize', () => { cm && cm.refresh(); if (!fitMode) return; clearTimeout(resizeTimer); resizeTimer = setTimeout(fitWidth, 120); });
+window.addEventListener('resize', () => { cm && cm.refresh(); });
 window.addEventListener('focus', () => { syncList(); checkExternal(); });
 
 document.addEventListener('keydown', e => {
@@ -2987,10 +2972,9 @@ document.addEventListener('keydown', e => {
   else if (c && k === '2') { e.preventDefault(); setView('split'); }
   else if (c && k === '3') { e.preventDefault(); setView('edit'); }
   else if (c && k === '4') { e.preventDefault(); setView('preview'); }
-  else if (c && k === '9') { e.preventDefault(); fitWidth(); }
   else if (c && (k === '=' || k === '+' || k === ';')) { e.preventDefault(); inEditor ? setEditorSize(edSize() + 1) : zoomBy(1.1); }
   else if (c && (k === '-' || k === '_')) { e.preventDefault(); inEditor ? setEditorSize(edSize() - 1) : zoomBy(1 / 1.1); }
-  else if (c && k === '0') { e.preventDefault(); inEditor ? setEditorSize(FONT_PARTS.editor.size) : setZoom(1, false); }
+  else if (c && k === '0') { e.preventDefault(); inEditor ? setEditorSize(FONT_PARTS.editor.size) : setZoom(1); }
   else if (e.altKey && e.shiftKey && !e.ctrlKey && e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); navGo(-1); }
   else if (e.altKey && e.shiftKey && !e.ctrlKey && e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); navGo(1); }
   else if (e.key === 'F5') { e.preventDefault(); $('bReload').click(); }

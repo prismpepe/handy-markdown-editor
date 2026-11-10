@@ -96,59 +96,77 @@ def finish():
     shown = js("[...document.querySelectorAll('[hidden]')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.id || e.className || e.tagName)")
     check("hidden 属性の要素が、すべて隠れている", shown, [])
 
-    # 編集ボタンの列: 5つのグループ。1行目＝標準の書式、2行目＝目次・データ・編集、3行目＝拡張の挿入
-    check("編集ボタンのグループの名前と並び", js("[...document.querySelectorAll('#fmt .fgroup .glabel')].map(e => e.textContent)"),
-          ['書式', '編集', 'リスト・ブロック', '目次・データ', '挿入（拡張）'])
-    check("リスト・ブロックは、引用がコードブロックの隣。末尾に、画像・表（アイコンだけ）", js("[...document.querySelectorAll('#fmt .fgroup')[2].querySelectorAll('button')].map(b => b.dataset.f)"),
-          ['ul', 'ol', 'task', 'quote', 'codeblock', 'rule', 'image', 'table'])
+    # 編集ボタンは、編集欄の左に縦に並ぶ（編集 → 書式 → リスト・ブロック）。選択欄などは、各画面の見出しの1行に置く
+    check("縦の列のグループの名前と並び", js("[...document.querySelectorAll('#fmt .fgroup .glabel')].map(e => e.textContent)"), ['編集', '書式', 'ブロック'])
+    check("編集: 元に戻す・やり直し・切り取り・コピー・貼り付け・検索・置換", js("[...document.querySelectorAll('#fmt .fgroup')[0].querySelectorAll('button')].map(b => b.dataset.e)"),
+          ['undo', 'redo', 'cut', 'copy', 'paste', 'find', 'replace'])
+    check("書式: H1〜H6 のボタン、そのあとに装飾・リンク・画像（画像は、行の中に入るので、リンクの隣。見出しの選択欄はない）", js("[...document.querySelectorAll('#fmt .fgroup')[1].querySelectorAll('button')].map(b => b.dataset.h || b.dataset.f)"),
+          ['1', '2', '3', '4', '5', '6', 'bold', 'italic', 'strike', 'code', 'link', 'image'])
+    check("見出しの選択欄は、なくなった", js("document.getElementById('fHead')"), None)
+    check("ブロックは、引用がコードブロックの隣。末尾に、表（アイコンだけ）", js("[...document.querySelectorAll('#fmt .fgroup')[2].querySelectorAll('button')].map(b => b.dataset.f)"),
+          ['ul', 'ol', 'task', 'quote', 'codeblock', 'rule', 'table'])
     check("画像・表のボタンは、アイコンだけ（文言なし）", js("[...document.querySelectorAll('#fmt button[data-f=image], #fmt button[data-f=table]')].map(b => b.textContent.trim())"), ['🖼', '▦'])
-    check("書式のグループは、文字単位のもの（見出し・装飾・リンク）だけ", js("[...document.querySelectorAll('#fmt .fgroup')[0].querySelectorAll('button')].map(b => b.dataset.f)"),
-          ['bold', 'italic', 'strike', 'code', 'link'])
-    check("見出しの選択欄は、細い", js("document.getElementById('fHead').getBoundingClientRect().width <= 100"), True)
-    check("チャートと数式は、2つの選択欄に分かれる（名前）", (js("document.querySelector('#fDiagram option').textContent"), js("document.querySelector('#fMath option').textContent")), ('チャートを挿入…', '数式を挿入…'))
-    check("2行目: 目次・表・データ", js("[...document.querySelectorAll('#fmt .fgroup')[3].querySelectorAll('.gbtns > *')].map(e => e.id)"), ['fToc', 'fTable'])
-    check("3行目（拡張）: 画像の挿入・チャート・数式・定型文", js("[...document.querySelectorAll('#fmt .fgroup')[4].querySelectorAll('.gbtns > *')].map(e => e.id)"), ['fImage', 'fDiagram', 'fMath', 'fSnip'])
-    check("既定の3画面（幅1400）でも、3行（2+2+1）に並ぶ", (w.resize(1400, 700), time.sleep(0.8), js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
-        const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""))[2], '2+2+1')
-    js("document.getElementById('editorPane').style.flex = '0 0 640px'")
-    time.sleep(.6)
-    check("編集欄が広いと、3行（1行目＝書式+編集、2行目＝リスト・ブロック+目次・データ、3行目＝拡張）", js("""(() => { const tops = [...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top));
-        const u = [...new Set(tops)].sort((a, b) => a - b); return u.map(t => tops.filter(x => x === t).length).join('+'); })()"""), '2+2+1')
-    js("document.getElementById('editorPane').style.flex = '0 0 1384px'")
-    time.sleep(.6)
-    check("編集欄が十分に広い（編集のみの表示など）と、1行に並ぶ", js("new Set([...document.querySelectorAll('#fmt .fgroup')].map(g => Math.round(g.getBoundingClientRect().top))).size"), 1)
-    js("document.getElementById('editorPane').style.flex = ''")
-    for width in (1400, 900, 600, 420):
-        w.resize(width, 700)
-        time.sleep(0.8)
-        split = js("""[...document.querySelectorAll('#fmt .fgroup')].filter(g => {
-            const tops = new Set([...g.querySelectorAll('.gbtns > *')].map(e => Math.round(e.getBoundingClientRect().top)));
-            return tops.size > 1; }).map(g => g.querySelector('.glabel').textContent)""")
-        if width >= 1400:
-            js("document.getElementById('editorPane').style.flex = '0 0 640px'"); time.sleep(.5)
-            split = js("""[...document.querySelectorAll('#fmt .fgroup')].filter(g => {
-                const tops = new Set([...g.querySelectorAll('.gbtns > *')].map(e => Math.round(e.getBoundingClientRect().top)));
-                return tops.size > 1; }).map(g => g.querySelector('.glabel').textContent)""")
-            js("document.getElementById('editorPane').style.flex = ''")
-            check("幅 %d: どのグループも、途中で折り返さない" % width, split, [])
-        else:       # 編集欄が、グループより狭いときは、グループの中で折り返す（折り返さずに、はみ出すと、プレビューに重なる）
-            over = js("""(() => { const f = document.getElementById('fmt').getBoundingClientRect();
-                return [...document.querySelectorAll('#fmt button, #fmt select')].filter(e => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > f.right + 1).length; })()""")
-            check("幅 %d: 狭いときは、グループの中で折り返し、部品が編集バーの右端を越えない" % width, over, 0)
-        clipped = js("""(() => { const f = document.getElementById('fmt').getBoundingClientRect();
-            return [...document.querySelectorAll('#fmt .fgroup')].filter(g => g.getBoundingClientRect().right > f.right + 1 && g.getBoundingClientRect().width <= f.width).length; })()""")
-        check("幅 %d: グループが、列の右端からはみ出さない" % width, clipped, 0)
+    check("グループの名前は、背景と違う色の帯に出る（埋もれない）",
+          js("(() => { const l = document.querySelector('#fmt .glabel'); return getComputedStyle(l).backgroundColor !== getComputedStyle(document.getElementById('fmt')).backgroundColor && parseInt(getComputedStyle(l).fontWeight) >= 600; })()"), True)
 
-    # --- 編集欄を狭めても、ボタンが、編集欄からはみ出して、プレビューに重ならない
+    check("各画面の見出しは「編集画面」「プレビュー画面」", js("[document.querySelector('#ehead .ptitle').textContent, document.querySelector('#phead .ptitle').textContent]"), ['編集画面', 'プレビュー画面'])
+    check("編集画面の見出し: 画像の挿入・チャート・数式・定型文・目次・表・データ", js("[...document.querySelectorAll('#ehead .hbtns > *')].map(e => e.id)"), ['fImage', 'fDiagram', 'fMath', 'fSnip', 'fToc', 'fTable'])
+    check("プレビュー画面の見出し: 倍率・印刷／PDF・HTML", js("[...document.querySelectorAll('#phead .hbtns button, #phead .hbtns input')].map(e => e.id)"), ['zOut', 'zVal', 'zIn', 'z100', 'bPrint', 'bHtml'])
+    check("全体表示のボタンは、なくなった", js("document.getElementById('zFit')"), None)
+    check("トップバーには、倍率・印刷／PDF・HTML がない", js("['zoombox', 'bPrint', 'bHtml'].map(i => !!document.querySelector('#toolbar #' + i))"), [False, False, False])
+    check("チャートと数式は、2つの選択欄に分かれる（名前）", (js("document.querySelector('#fDiagram option').textContent"), js("document.querySelector('#fMath option').textContent")), ('チャートを挿入…', '数式を挿入…'))
+
+    w.resize(1400, 800)
+    time.sleep(.8)
+    check("既定の3画面（幅1400）: トップバーは1段", js("document.getElementById('toolbar').getBoundingClientRect().height < 60"), True)
+    check("編集画面とプレビュー画面の見出しは、同じ高さの1行（本文が同じ高さから始まる）",
+          js("(() => { const e = document.getElementById('ehead').getBoundingClientRect(), p = document.getElementById('phead').getBoundingClientRect(); return [Math.round(e.height), Math.round(p.height), Math.round(e.bottom - p.bottom)]; })()"), [36, 36, 0])
+    check("編集欄は、見出しの直下から始まり、プレビューと同じ高さから始まる",
+          js("(() => { const c = document.querySelector('#edbox .CodeMirror').getBoundingClientRect(), p = document.getElementById('pscroll').getBoundingClientRect(); return Math.round(c.top - p.top); })()"), 0)
+    check("高さの足りない窓（800）では、縦の列は2列", js("document.getElementById('fmt').classList.contains('two')"), True)
+    check("縦の列は、編集欄の高さに収まる（はみ出さない）", js("(() => { const f = document.getElementById('fmt'); return f.scrollHeight <= f.clientHeight + 1; })()"), True)
+    w.resize(1400, 1040)
+    time.sleep(1.0)
+    check("高い窓（1040）では、縦の列は1列", js("document.getElementById('fmt').classList.contains('two')"), False)
+    check("1列のときは、列の幅が狭い（編集欄を広く使える）", js("Math.round(document.getElementById('fmt').getBoundingClientRect().width) <= 56"), True)
+    w.resize(1400, 800)
+    time.sleep(.8)
+
+    # --- 倍率（プレビュー画面の見出し）
+    js("document.getElementById('zIn').click()")
+    check("＋で倍率が上がる", js("+document.getElementById('zVal').value > 100"), True)
+    js("document.getElementById('z100').click()")
+    check("100% で等倍に戻る", js("[+document.getElementById('zVal').value, document.getElementById('preview').style.zoom]"), [100, '1'])
+
+    # --- 窓が狭くなっても、見出しの部品や縦の列が、はみ出さない
+    for width in (1400, 900, 600, 420):
+        js("document.getElementById('%s').click()" % ('vTriple' if width >= 900 else 'vSplit'))       # 狭い窓では、一覧を隠す（2画面）
+        w.resize(width, 800)
+        time.sleep(0.8)
+        over = js("""(() => { const out = [];
+          for (const id of ['ehead', 'phead']) { const h = document.getElementById(id), r = h.getBoundingClientRect();
+            if (r.width === 0) continue;
+            for (const e of h.querySelectorAll('button, select, input')) { const b = e.getBoundingClientRect(); if (b.width > 0 && b.right > r.right + 1) out.push(id + ':' + (e.id || e.textContent.trim())); } }
+          return out; })()""")
+        check("幅 %d: 見出しの部品が、見出しの右端を越えない" % width, over, [])
+    js("document.getElementById('vTriple').click()")
+    # --- 編集欄を狭めても、部品が編集欄からはみ出して、プレビューに重ならない
+    w.resize(1400, 800)
+    time.sleep(.5)
     for width in (420, 330, 260, 200):
         js("document.getElementById('editorPane').style.flex = '0 0 %dpx'" % width)
         time.sleep(.5)
         over = js("""(() => { const pane = document.getElementById('editorPane').getBoundingClientRect();
-          return [...document.querySelectorAll('#fmt button, #fmt select')].filter(e => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > pane.right + 1)
+          return [...document.querySelectorAll('#ehead button, #ehead select, #fmt button')].filter(e => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > pane.right + 1)
             .map(e => (e.id || e.textContent.trim()) + ':' + Math.round(e.getBoundingClientRect().right - pane.right)); })()""")
-        check("編集欄の幅 %dpx: 編集バーの部品が、編集欄の右端を越えない" % width, over, [])
-    check("狭いときは、グループの中で折り返して、段が増える（見切れない）",
-          js("[...document.querySelectorAll('#fmt .fgroup')].every(g => g.getBoundingClientRect().width > 0)"), True)
+        check("編集欄の幅 %dpx: 見出しの部品と縦の列が、編集欄の右端を越えない" % width, over, [])
+    js("document.getElementById('editorPane').style.flex = ''")
+    w.resize(1400, 800)
+    time.sleep(.5)
+    js("document.getElementById('editorPane').style.flex = '0 0 540px'")
+    time.sleep(.6)
+    check("編集欄が狭い（540）と、定型文・目次・表・データは、アイコンだけになり、見出しは1行のまま",
+          js("[Math.round(document.getElementById('ehead').getBoundingClientRect().height), getComputedStyle(document.querySelector('#ehead .bl')).display]"), [36, 'none'])
     js("document.getElementById('editorPane').style.flex = ''")
 
     print("RESULT", sum(results), "/", len(results), flush=True)
