@@ -50,7 +50,7 @@ import snippets
 from sanitize import sanitize
 
 APP_NAME = "Handy Markdown Editor"
-APP_VERSION = "1.21.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.22.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
