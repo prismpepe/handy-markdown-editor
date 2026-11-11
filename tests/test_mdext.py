@@ -156,3 +156,45 @@ def test_ファイル名つきでもとコードの中身は変わらない():
 def test_図と数式の書き方はと影響を受けない():
     assert "mermaid-src" in render("```mermaid\ngraph TD; A-->B\n```\n")
     assert "math" in render("```math\nx^2\n```\n")
+
+
+# ---------------------------------------------------------------- 文中の脚注・数式との組み合わせ（利用者の報告: 変換が例外になり、画面が更新されなくなった）
+def test_文中の脚注_は枝番がなくても描ける():
+    out = render("文中の脚注です^[インラインの脚注です]。\n")
+    assert 'id="fnref1"' in out and "インラインの脚注です" in out and "[1:" not in out
+
+
+def test_同じ脚注を2回使うと枝番が付く():
+    out = render("あ[^1]い[^1]\n\n[^1]: 説明\n")
+    assert 'id="fnref1"' in out and 'id="fnref1:1"' in out and ">1:1<" in out
+
+
+def test_数式と脚注と文中の脚注が混ざった文書():
+    src = ("インライン数式は $x^2$ のように書きます。\n\n$$\nx^2 + y^2 = 1\n$$\n\n"
+           "本文に脚注を付けます[^1]。インラインでも書けます^[インラインの脚注です]。\n\n[^1]: 脚注の内容です。\n")
+    out = render(src)
+    assert 'class="math inline"' in out and 'class="math block"' in out
+    assert "脚注の内容です" in out and "インラインの脚注です" in out
+
+
+def test_拡張の書き方をでたらめに組み合わせても_変換が例外にならない():
+    import random
+    parts = ["本文[^1]", "[^1]: 定義", "[^x]", "文中^[注]", "$x^2$", "$$\na\n$$", ":::note info\n中\n:::", ":::note",
+             ":::", "> [!NOTE]\n> a", "> [!TIP]", "> 引用", "```ruby:a.rb\nputs 1\n```", "```diff_js\n- a\n+ b\n```", "```",
+             "- 項目\n  > [!NOTE]\n  > 中", "| a | b |\n|---|---|\n| 1[^1] | 2 |", "# 見出し[^1]", "[^1]: 二つ目の定義", "<details>\n[^1]\n</details>",
+             "**強調[^1]**", "[リンク][^1]", "![画像](a.png)[^1]", "1. 番号\n   [^2]: 入れ子の定義", "[^1][^1][^1]", "^[a^[b]]"]
+    rnd = random.Random(20261112)
+    for _ in range(400):
+        text = "\n\n".join(rnd.choice(parts) for _ in range(rnd.randint(1, 8)))
+        render(text)                                            # 例外にならないこと
+
+
+def test_変換が例外になっても_画面に出す文を返し_例外を投げない():
+    api = app.Api(None)
+
+    def boom(text, env):
+        raise RuntimeError("壊れた <b>入力</b>")
+    api._md.render = boom
+    out = api.render("本文", None)
+    assert "表示できませんでした" in out and "RuntimeError" in out
+    assert "<b>入力</b>" not in out and "&lt;b&gt;入力&lt;/b&gt;" in out            # 例外の文は、無害化される

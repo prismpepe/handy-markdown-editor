@@ -129,6 +129,26 @@ def drive():
     js("cm.setValue(':::note warn\\n書き換え後\\n:::\\n')")
     check("編集すると、注釈ブロックが描き直される", wait("document.querySelectorAll(%s).length === 1 && document.querySelector(%s).textContent.includes('書き換え後')" % (json.dumps(q('.md-note-warn')), json.dumps(q('.md-note-warn')))), True)
 
+    # --- 数式・脚注・文中の脚注が混ざった文書でも、プレビューが更新される（利用者の報告）
+    sample = ("インライン数式は $x^2$ のように書きます。" + chr(10) * 2 + "$$" + chr(10) + "x^2 + y^2 = 1" + chr(10) + "$$" + chr(10) * 2 +
+              "本文に脚注を付けます[^1]。インラインでも書けます^[インラインの脚注です]。" + chr(10) * 2 + "[^1]: 脚注の内容です。" + chr(10))
+    js("cm.setValue(%s)" % json.dumps(sample))
+    check("数式と脚注と文中の脚注が混ざった文書が、描かれる", wait("document.querySelectorAll(%s).length === 2 && document.querySelector(%s)" % (json.dumps(q('sup.footnote-ref')), json.dumps(q('.footnotes')))), True)
+    js("cm.setValue(cm.getValue() + %s)" % json.dumps(chr(10) + "追記です" + chr(10)))
+    check("そのあとの入力も、プレビューに反映される", wait("document.querySelector(%s).textContent.includes('追記です')" % json.dumps(q('p:last-of-type'))) or wait("document.getElementById('preview').textContent.includes('追記です')"), True)
+
+    # --- 変換が例外になっても、エラーを表示し、直れば、また更新される
+    api._md_real = api._md.render
+
+    def boom(text, env):
+        raise RuntimeError("試験のための失敗")
+    api._md.render = boom
+    js("cm.setValue('壊れる文書')")
+    check("変換が失敗すると、プレビューにエラーが出る（画面が固まらない）", wait("document.querySelector(%s) !== null" % json.dumps(q('.render-error'))), True)
+    api._md.render = api._md_real
+    js("cm.setValue('直った文書')")
+    check("直ると、また更新される", wait("document.getElementById('preview').textContent.includes('直った文書') && !document.querySelector(%s)" % json.dumps(q('.render-error'))), True)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True

@@ -67,3 +67,15 @@ def test_規則の一覧に載っている():
     ids = [r[0] for r in lint.RULES]
     assert {"X011", "X012", "X013"} <= set(ids)
     assert all(r[2] for r in lint.RULES if r[0] in ("X011", "X012", "X013"))      # 既定で検査する
+
+
+def test_拡張の書き方をでたらめに組み合わせても_検査が例外にならない():
+    import random
+    parts = ["本文[^1]", "[^1]: 定義", "[^x]", "文中^[注]", "$x^2$", "$$\na\n$$", ":::note info\n中\n:::", ":::note", ":::", ":::details 題",
+             "> [!NOTE]\n> a", "> [!TIP]", "> [!INFO]", "> 引用", "```ruby:a.rb\nputs 1\n```", "```diff_js\n- a\n+ b\n```", "```",
+             "- 項目\n  > [!NOTE]\n  > 中", "| a | b |\n|---|---|\n| 1[^1] | 2 |", "# 見出し[^1]", "[^1]: 二つ目の定義",
+             "**強調[^1]**", "[リンク][^1]", "1. 番号\n   [^2]: 入れ子の定義", "[^1][^1][^1]", "^[a^[b]]", "`[^c]`"]
+    rnd = random.Random(20261112)
+    for _ in range(300):
+        text = "\n\n".join(rnd.choice(parts) for _ in range(rnd.randint(1, 8)))
+        run(text)

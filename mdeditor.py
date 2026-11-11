@@ -50,7 +50,7 @@ import snippets
 from sanitize import sanitize
 
 APP_NAME = "Handy Markdown Editor"
-APP_VERSION = "1.22.0"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
+APP_VERSION = "1.22.1"         # ウィンドウのタイトルなどに出すバージョン。ここだけ書き換える
 APP_TITLE = f"{APP_NAME} v{APP_VERSION}"
 MD_EXTENSIONS = (".md", ".markdown", ".mdown", ".mkd")
 PROG_ID = "MarkdownEditor.File"
@@ -785,7 +785,10 @@ class Api:
     def render(self, text, path=None):
         base = os.path.dirname(path) if path else ""
         self._doc_dir = base or None
-        html = self._md.render(text, {"base": base})
+        try:
+            html = self._md.render(text, {"base": base})
+        except Exception as e:             # 変換器の不具合で例外が出ても、画面が更新されなくならないように、エラーを表示する
+            return mdext.error_html(e)
         return sanitize(html, lambda src: inline_image(src, base))
 
     # --- 保存の設定と、下書き（自動保存）-----------------------------------

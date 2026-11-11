@@ -47,10 +47,17 @@ def _render_note(self, tokens, idx, options, env):
 
 def _footnote_caption(self, tokens, idx, options, env):
     """本文の中の番号。標準では [1] と括弧が付く。GitHub と同じく、数字だけにする（上付きにする）。"""
-    n = str(tokens[idx].meta["id"] + 1)
-    if tokens[idx].meta["subId"] > 0:
-        n += ":" + str(tokens[idx].meta["subId"])
+    meta = tokens[idx].meta
+    n = str(meta["id"] + 1)
+    if meta.get("subId", 0) > 0:                     # 同じ脚注を 2 回以上使うと、1:1 のように枝番が付く。文中の ^[...] には、枝番がない
+        n += ":" + str(meta["subId"])
     return n
+
+
+def error_html(exc):
+    """変換中に例外が起きたときに、画面へ出す HTML。例外を画面の側へ投げると、その文書が直るまで、プレビューが更新されなくなる。"""
+    return ('<div class="render-error"><p><strong>この文書を表示できませんでした。</strong>変換中にエラーが起きました。</p>'
+            '<pre>' + escape(f"{type(exc).__name__}: {exc}", quote=False) + '</pre></div>')
 
 
 def _alerts(state):
