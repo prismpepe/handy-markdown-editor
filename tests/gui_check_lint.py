@@ -53,7 +53,7 @@ def rows():
 def drive():
     time.sleep(8)
     wait("document.getElementById('lintBtn') && lint.rules.length > 0")
-    check("規則の一覧を Python から受け取る（24 規則）", js("lint.rules.length"), 24)
+    check("規則の一覧を Python から受け取る（27 規則）", js("lint.rules.length"), 27)
     check("一覧は、はじめは閉じている", js("document.getElementById('lintPanel').hidden"), True)
     check("空の文書は「問題なし」", wait("document.getElementById('lintBtn').textContent.includes('問題なし')"), True)
 
@@ -79,7 +79,7 @@ def drive():
     # 自動検査を切る
     js("document.getElementById('lintRules').click()")
     check("「ルール…」で、ダイアログが開く", js("!document.getElementById('lveil').hidden"), True)
-    check("規則の欄が 24 件", js("document.querySelectorAll('#lRules .lr').length"), 24)
+    check("規則の欄が 27 件", js("document.querySelectorAll('#lRules .lr').length"), 27)
     check("既定で切っている規則（MD010・MD026・MD040・MD045）は、チェックが外れている",
           js("[...document.querySelectorAll('#lRules .lr')].filter(d => !d.querySelector('input').checked).map(d => d.querySelector('.id').textContent)"),
           ['MD010', 'MD026', 'MD040', 'MD045'])
@@ -95,7 +95,7 @@ def drive():
     check("既定で切っていた規則を入れると、指摘が出る", wait("document.querySelectorAll('#lintList .lrow').length === 1 && document.querySelector('#lintList .rid').textContent === 'MD040'"), True)
     js("document.getElementById('lDefault').click()")
     check("「既定に戻す」で、MD001 が有効、MD040 が無効に戻る",
-          js("[lint.rules.length, lintPref().disabled.includes('MD001'), lintPref().disabled.includes('MD040')]"), [24, False, True])
+          js("[lint.rules.length, lintPref().disabled.includes('MD001'), lintPref().disabled.includes('MD040')]"), [27, False, True])
     js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}))")
     check("Esc でダイアログが閉じる", js("document.getElementById('lveil').hidden"), True)
 

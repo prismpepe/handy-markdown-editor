@@ -102,7 +102,7 @@ def drive():
         time.sleep(.3)
     print('   画面の知らせ:', js("document.getElementById('smsg') ? document.getElementById('smsg').textContent : null"), '/ 確認:', js("window._asked"), flush=True)
     check("「作る」で、文書フォルダーの .markdown-editor が作られる", os.path.isdir(os.path.join(SD, 'snippets')), True)
-    check("定型文 8 つと、テンプレート 4 つが、ファイルになる", [len(os.listdir(os.path.join(SD, 'snippets'))), len(os.listdir(os.path.join(SD, 'templates')))], [8, 4])
+    check("定型文 10 と、テンプレート 4 つが、ファイルになる", [len(os.listdir(os.path.join(SD, 'snippets'))), len(os.listdir(os.path.join(SD, 'templates')))], [10, 4])
     cfg = json.load(open(os.path.join(SD, 'settings.json'), encoding='utf-8'))
     check("settings.json は、組み込みを使わない（inherit: false）設定", cfg, {"snippets": {"inherit": False}, "templates": {"inherit": False}})
     check("知らせが出る（保存先と件数）", wait("document.getElementById('smsg').textContent.includes('設定を作りました')"), True)
@@ -111,12 +111,12 @@ def drive():
     check("左の一覧に、.markdown-editor のフォルダーが出る", wait("[...document.querySelectorAll('#list .dirrow')].some(d => d.dataset.dir === '.markdown-editor')"), True)
     js("document.querySelector('.dirrow[data-dir=\".markdown-editor\"]').click()")
     js("document.getElementById('treeOpen').click()")
-    check("その中の定型文・テンプレートの .md が、一覧に並ぶ", wait("document.querySelectorAll('#list .item[data-rel^=\".markdown-editor/\"]').length === 12"), True)
+    check("その中の定型文・テンプレートの .md が、一覧に並ぶ", wait("document.querySelectorAll('#list .item[data-rel^=\".markdown-editor/\"]').length === 14"), True)
 
     # --- 作ったあとは、そのフォルダーのファイルだけが使われる
     m = menu()
     check("メニューの見出しは、「この文書フォルダーの設定」だけ（組み込みは出ない）", [x for x in m if x.startswith('×—')], ['×— この文書フォルダーの設定 —'])
-    check("8 つの定型文", sum(1 for x in m if not x.startswith('×') and x not in ('この文書フォルダー用の設定を作る…', '自分用の定型文の場所を開く…')), 8)
+    check("10 の定型文", sum(1 for x in m if not x.startswith('×') and x not in ('この文書フォルダー用の設定を作る…', '自分用の定型文の場所を開く…')), 10)
 
     # --- 右クリック: 削除（ごみ箱へ）
     sub = right_click_menu('日時')

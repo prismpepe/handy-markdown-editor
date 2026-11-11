@@ -16,6 +16,7 @@ import re
 from urllib.parse import unquote, urlsplit
 from urllib.request import url2pathname
 
+import mdext
 import sanitize
 from toc import ID_ATTR
 
@@ -51,6 +52,9 @@ RULES = [
     ("X008", "グラフの JSON の誤り", True, "```vega-lite の中身が JSON として読めません。"),
     ("X009", "数式の誤り", True, "KaTeX が数式を組めません（プレビューを描いた結果から集めます）。"),
     ("X010", "図の誤り", True, "Mermaid が図を描けません（プレビューを描いた結果から集めます）。"),
+    ("X011", "脚注の書き方", True, "本文の [^1] に対応する [^1]: の定義がない、または、定義があるのに本文から使われていません。"),
+    ("X012", "注釈ブロックの書き方", True, "Qiita の :::note の種類が info・warn・alert 以外、または、閉じの ::: がありません。"),
+    ("X013", "アラートの種類", True, "GitHub のアラートは [!NOTE] [!TIP] [!IMPORTANT] [!WARNING] [!CAUTION] の5種類です。"),
 ]
 RULE_IDS = [r[0] for r in RULES]
 DEFAULT_OFF = [r[0] for r in RULES if not r[2]]
@@ -388,6 +392,8 @@ def lint(text, md, doc_path=None, disabled=()):
                     _check_html(child.content, ln, add)
     # 未対応の段落（$$ の閉じ忘れ）は、数式のブロックにならず段落として残る。上の text の検査で拾う
 
+    _check_extensions(lines, tokens, skip, add)
+
     issues.sort(key=lambda x: (x["line"], x["rule"]))
     seen_keys, out = set(), []
     for it in issues:
@@ -398,6 +404,58 @@ def lint(text, md, doc_path=None, disabled=()):
         if len(out) >= MAX_ISSUES:
             break
     return out
+
+
+FOOTNOTE_REF = re.compile(r"\[\^([^\]\s]+)\]")
+FOOTNOTE_DEF = re.compile(r"^ {0,3}\[\^([^\]\s]+)\]:")
+COLON_OPEN = re.compile(r"^ {0,3}:{3,}[ \t]*([^\s:]\S*)(.*)$")
+COLON_CLOSE = re.compile(r"^ {0,3}:{3,}[ \t]*$")
+ALERT_MARK = re.compile(r"^ {0,3}>[ \t]*\[!([A-Za-z]+)\][ \t]*$")
+INLINE_CODE = re.compile(r"`[^`\n]*`")
+
+
+def _check_extensions(lines, tokens, skip, add):
+    """脚注・Qiita の注釈ブロック・GitHub のアラートの書き間違い（mdext.py の書き方）。"""
+    defined = {}                                       # 定義（[^x]: 説明）。使われない定義は、変換器が捨てるので、文字から拾う
+    used = {}
+    stack = []                                         # 開いている ::: のブロック (名前, 行)
+    for i, line in enumerate(lines):
+        if i in skip:
+            continue
+        m = COLON_CLOSE.match(line)
+        if m:
+            if stack:
+                stack.pop()
+            continue
+        m = COLON_OPEN.match(line)
+        if m:
+            name, rest = m.group(1), m.group(2)
+            if name == "note":
+                if mdext.note_kind("note" + rest) is None:
+                    add(i, "X012", WARNING, "注釈ブロックの種類は info・warn・alert のどれかです（「%s」は、注釈になりません）" % rest.strip())
+                    continue
+            stack.append((name, i))
+            continue
+        m = ALERT_MARK.match(line)
+        if m and m.group(1).upper() not in mdext.ALERTS:
+            add(i, "X013", WARNING, "[!%s] は、GitHub のアラートの種類ではありません（NOTE・TIP・IMPORTANT・WARNING・CAUTION）" % m.group(1))
+        plain = INLINE_CODE.sub("", line)
+        dm = FOOTNOTE_DEF.match(plain)
+        if dm:
+            defined.setdefault(dm.group(1), i)
+        for fm in FOOTNOTE_REF.finditer(plain):
+            if dm and fm.start() == dm.start(1) - 2:
+                continue                               # 定義の行の先頭の [^x]: は、参照ではない
+            used.setdefault(fm.group(1), i)
+    for label, i in used.items():
+        if label not in defined:
+            add(i, "X011", WARNING, "脚注 [^%s] の定義（[^%s]: 説明）がありません" % (label, label))
+    for label, i in defined.items():
+        if label not in used:
+            add(i, "X011", INFO, "脚注 [^%s] は、本文から使われていません" % label)
+    for name, i in stack:
+        if name == "note":
+            add(i, "X012", WARNING, "注釈ブロック（:::note）が閉じられていません。以降がすべて注釈になります（閉じは :::）")
 
 
 def _check_html(content, line, add):

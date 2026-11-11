@@ -64,7 +64,7 @@ def drive():
     check("押すと、メニューが出る", wait("!document.getElementById('ctx').hidden"), True)
     check("自分用と組み込みが、見出しで分かれて並ぶ（自分用が上）",
           js("[...document.querySelectorAll('#ctx .citem')].filter(b => b.disabled).map(b => b.textContent)"), ['— 自分用 —', '— 組み込み —', '※ 項目を右クリックすると、編集・削除'])
-    check("組み込み8つ・自分用1つ・設定を作る・場所を開く", js("[...document.querySelectorAll('#ctx .citem')].filter(b => !b.disabled).length"), 8 + 1 + 2)
+    check("組み込み10・自分用1つ・設定を作る・場所を開く", js("[...document.querySelectorAll('#ctx .citem')].filter(b => !b.disabled).length"), 10 + 1 + 2)
     check("自分用の定型文は、ファイル名で出る", js("[...document.querySelectorAll('#ctx .citem')].some(b => b.textContent === '署名')"), True)
     check("末尾に、設定を作る項目がある", js("[...document.querySelectorAll('#ctx .citem')].some(b => b.textContent === 'この文書フォルダー用の設定を作る…')"), True)
     check("メニューが、画面に収まる", js("(() => { const r = document.getElementById('ctx').getBoundingClientRect(); return r.bottom <= innerHeight && r.right <= innerWidth && r.top >= 0 })()"), True)

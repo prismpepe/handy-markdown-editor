@@ -17,7 +17,7 @@ TAGS = {
     "del", "ins", "sub", "sup", "small", "mark", "code", "pre", "kbd", "samp",
     "var", "blockquote", "ul", "ol", "li", "dl", "dt", "dd", "h1", "h2", "h3",
     "h4", "h5", "h6", "a", "img", "details", "summary", "figure", "figcaption",
-    "abbr", "cite", "q", "center", "input",
+    "abbr", "cite", "q", "center", "input", "section",
 }
 VOID = {"br", "hr", "img", "col", "input"}
 DROP_WITH_CONTENT = {"script", "style", "iframe", "object", "embed", "noscript",

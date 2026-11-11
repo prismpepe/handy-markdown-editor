@@ -28,6 +28,7 @@ import dialogs
 import drafts
 import filedrop
 import highlight
+import mdext
 import imgembed
 import lint
 import foldersearch
@@ -208,6 +209,7 @@ def make_renderer():
     md.enable(["table", "strikethrough"])
     mathtex.apply(md, lines=True)   # 数式（```math、$$ ... $$、文中の $...$）。組版は画面側の KaTeX
     md.use(tasklists_plugin)
+    mdext.apply(md)             # 脚注・Qiita の :::note・GitHub のアラート（[!NOTE]）
     md.use(anchors_plugin, min_level=1, max_level=6)
 
     def add_lines(state):
@@ -235,11 +237,12 @@ def make_renderer():
                     + escapeHtml(tok.content) + "</code></pre>")
         if highlight.language_of(tok.info) == mathtex.LANG:         # ```math は、数式として画面で組む
             return mathtex.block_html(tok.content, line)
+        head = mdext.filename_html(tok.info)                    # ```ruby:app.rb は、ファイル名を上に出す
         colored = highlight.render_fence(tok.content, tok.info, f' data-line="{line}"')   # 言語名つきのコードは、色分けする
         if colored is not None:
-            return colored
+            return head + colored
         out = default_fence(tokens, idx, options, env)
-        return out.replace("<pre", f'<pre data-line="{line}"', 1)
+        return head + out.replace("<pre", f'<pre data-line="{line}"', 1)
 
     md.add_render_rule("image", image)
     md.add_render_rule("fence", fence)

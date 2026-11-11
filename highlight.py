@@ -11,6 +11,7 @@ Pygments で字句に分け、`<span class="tok-…">` にして返す。色は 
 import re
 from html import escape
 
+import mdext
 from pygments.lexers import get_lexer_by_name
 from pygments.token import STANDARD_TYPES
 from pygments.util import ClassNotFound
@@ -40,14 +41,11 @@ _TOKEN_CLASS = {tok: STANDARD_TYPES.get(tok, "") for tok in STANDARD_TYPES}
 
 
 def language_of(info):
-    """コードブロックの情報行から、言語名（小文字）を取り出す。```{.python} や ```python title="a.py" も読む。"""
-    words = (info or "").strip().split()
-    if not words:
-        return ""
-    first = words[0].strip("{}").lstrip(".").lower()
-    if first.startswith("language-"):
-        first = first[len("language-"):]
-    return first
+    """コードブロックの情報行から、言語名（小文字）を取り出す。```{.python}、```python title="a.py"、```ruby:app.rb（ファイル名つき）、```diff_ruby（差分）も読む。"""
+    lang = mdext.split_info(info)[0]
+    if lang.startswith("language-"):
+        lang = lang[len("language-"):]
+    return lang
 
 
 def lexer_for(lang):
