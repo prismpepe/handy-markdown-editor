@@ -226,6 +226,10 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #preview .md-note-warn { background: rgba(212, 167, 44, .16); border-left-color: #d4a72c; }
 #preview .md-note-alert { background: rgba(207, 34, 46, .10); border-left-color: #cf222e; }
 #preview blockquote.md-alert { color: inherit; border-left-width: 4px; }
+/* 発表（スライド）用の書き方。ふつうの表示では、発表者ノートとスライドの指定は隠し、段組みは横に並べる */
+#preview .slide-note, #preview .slide-directive { display: none; }
+#preview .deck-columns { display: flex; gap: 1.5em; align-items: flex-start; }
+#preview .deck-col { flex: 1 1 0; min-width: 0; }
 #preview .render-error { margin: 1em 0; padding: .1em 1em; border-left: 4px solid #cf222e; background: rgba(207, 34, 46, .10); border-radius: 4px; }
 #preview .md-alert-title { margin: .6em 0 .1em; font-weight: 600; }
 #preview .md-alert-title + p { margin-top: .2em; }
@@ -575,6 +579,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       <div id="previewPane">
         <div class="pane-title" id="phead"><span class="ptitle">プレビュー画面</span><span class="hbtns">
           <span id="zoombox"><button id="zOut" title="縮小">−</button><input id="zVal" type="number" min="10" max="500" step="5" value="100" title="倍率(%)を直接入力">%<button id="zIn" title="拡大">＋</button><button id="z100" title="等倍">100%</button></span>
+          <button id="bDeck" title="発表（スライドショー）を始める。水平線（---）でスライドを区切ります">▶ 発表</button>
           <button id="bPrint" title="Ctrl+P">🖨 印刷／PDF</button>
           <button id="bHtml" title="いま書いている文書を、1つで完結する HTML ファイルに書き出す（図・グラフ・数式も入ります）">🌐 HTML</button>
         </span></div>
@@ -2920,6 +2925,16 @@ window.addEventListener('resize', hideCtx);
 
 // ---- ボタン・入力
 $('bNew').onclick = newDoc; $('bFolder').onclick = chooseFolder; $('bOpen').onclick = chooseFile;
+/*DECK_UI_JS*/
+const DECK_HOST = {
+  appName: 'Editor',
+  docPath: () => doc.path || folder || null,
+  startLine: () => (typeof cm !== 'undefined' && cm && doc.path !== undefined) ? cm.getCursor().line : null,
+  hasDocument: () => !!cm.getValue().trim(),
+  say: t => status(t, true, 6000),
+  refresh: () => updatePreview(),
+};
+$('bDeck').onclick = startPresentation;
 $('bPrint').onclick = openPrint; $('bHtml').onclick = exportHtml; $('bSaveAs').onclick = saveAs;
 $('bReload').onclick = async () => { await syncList(true); await checkExternal(); };
 $('vTriple').onclick = () => setView('triple'); $('vSplit').onclick = () => setView('split');

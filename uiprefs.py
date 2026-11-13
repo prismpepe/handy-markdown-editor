@@ -146,6 +146,27 @@ def clean_safety(value):
     return out
 
 
+DECK_RATIOS = ("16:9", "16:10", "4:3", "auto")
+
+
+def clean_deck(value):
+    """発表の設定（テーマ・画面の比率・発表者ビューを開くか・モニターの番号）。正しいものだけ返す。"""
+    out = {}
+    if not isinstance(value, dict):
+        return out
+    theme = value.get("theme")
+    if isinstance(theme, str) and 0 < len(theme) <= 400:
+        out["theme"] = theme
+    if value.get("ratio") in DECK_RATIOS:
+        out["ratio"] = value["ratio"]
+    if isinstance(value.get("presenter"), bool):
+        out["presenter"] = value["presenter"]
+    screen = value.get("screen")
+    if isinstance(screen, int) and not isinstance(screen, bool) and -1 <= screen <= 16:
+        out["screen"] = screen
+    return out
+
+
 def clean_prefs(patch):
     """画面から受け取った設定のうち、正しいものだけを返す（書き込んでよい項目に限る）。"""
     out = {}
@@ -175,6 +196,10 @@ def clean_prefs(patch):
         lint_prefs = clean_lint(patch["lint"])
         if lint_prefs:
             out["lint"] = lint_prefs
+    if "deck" in patch:
+        deck_prefs = clean_deck(patch["deck"])
+        if deck_prefs:
+            out["deck"] = deck_prefs
     return out
 
 

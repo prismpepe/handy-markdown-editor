@@ -111,7 +111,7 @@ def finish():
 
     check("各画面の見出しは「編集画面」「プレビュー画面」", js("[document.querySelector('#ehead .ptitle').textContent, document.querySelector('#phead .ptitle').textContent]"), ['編集画面', 'プレビュー画面'])
     check("編集画面の見出し: 画像の挿入・チャート・数式・定型文・目次・表・データ", js("[...document.querySelectorAll('#ehead .hbtns > *')].map(e => e.id)"), ['fImage', 'fDiagram', 'fMath', 'fSnip', 'fToc', 'fTable'])
-    check("プレビュー画面の見出し: 倍率・印刷／PDF・HTML", js("[...document.querySelectorAll('#phead .hbtns button, #phead .hbtns input')].map(e => e.id)"), ['zOut', 'zVal', 'zIn', 'z100', 'bPrint', 'bHtml'])
+    check("プレビュー画面の見出し: 倍率・発表・印刷／PDF・HTML", js("[...document.querySelectorAll('#phead .hbtns button, #phead .hbtns input')].map(e => e.id)"), ['zOut', 'zVal', 'zIn', 'z100', 'bDeck', 'bPrint', 'bHtml'])
     check("全体表示のボタンは、なくなった", js("document.getElementById('zFit')"), None)
     check("トップバーには、倍率・印刷／PDF・HTML がない", js("['zoombox', 'bPrint', 'bHtml'].map(i => !!document.querySelector('#toolbar #' + i))"), [False, False, False])
     check("チャートと数式は、2つの選択欄に分かれる（名前）", (js("document.querySelector('#fDiagram option').textContent"), js("document.querySelector('#fMath option').textContent")), ('チャートを挿入…', '数式を挿入…'))

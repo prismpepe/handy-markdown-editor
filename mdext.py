@@ -6,6 +6,9 @@
   Qiita の表示に合わせて、見出しは付けず、色と左の線だけで区別する。
 - GitHub のアラート: 引用の最初の行に `[!NOTE]`（`[!TIP]`・`[!IMPORTANT]`・`[!WARNING]`・`[!CAUTION]`）を書く。
   引用の書き方に乗っているので、対応していないアプリでは、ただの引用に見える。GitHub と同じく、英語の見出しを付ける。
+- 発表（スライド）用: `<!-- note: 発表者ノート -->` は発表者ノート（`<aside class="slide-note">`。ふつうの表示では隠す）、
+  `<!-- _class: lead -->` はそのスライドの種類の指定（`<div class="slide-directive sd-lead">`）、
+  `::::columns` 〜 `:::col` 〜 `::::` は段組み。スライドの区切りは、水平線（---）で、deck.py が受け持つ。
 - コードブロックの情報行: ```ruby:app.rb は、言語 ruby とファイル名 app.rb（Qiita・Zenn の書き方）。
   ```diff_ruby は、差分（Qiita の書き方）。この 2 つは highlight.py が読み、ファイル名の表示は `filename_html` が作る。
 
@@ -26,6 +29,36 @@ ALERTS = {                                                                      
 _ALERT_HEAD = re.compile(r"^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\n|$)", re.I)
 
 
+_NOTE = re.compile(r"^\s*<!--\s*(?:notes?|ノート|メモ|発表者ノート)\s*[:：]?\s*(.*?)\s*-->\s*$", re.S | re.I)
+_CLASS = re.compile(r"^\s*<!--\s*_?class\s*[:：]\s*(.*?)\s*-->\s*$", re.S | re.I)
+_CLASS_WORD = re.compile(r"[a-z0-9_-]+")
+
+
+def slide_comment_html(content):
+    """HTML コメントだけのブロックが、発表者ノートかスライドの種類の指定なら、その HTML を返す。違えば None。
+
+    ノートは文字として扱い、HTML は通さない。種類は、英数字・`_`・`-` の語だけを、`sd-` を付けたクラスにする
+    （任意の文字をクラスに入れない）。
+    """
+    m = _NOTE.match(content)
+    if m and m.group(1):
+        return '<aside class="slide-note">' + escape(m.group(1), quote=False).replace("\n", "<br>\n") + "</aside>\n"
+    m = _CLASS.match(content)
+    if m:
+        words = _CLASS_WORD.findall(m.group(1).lower())
+        if words:
+            return '<div class="slide-directive ' + " ".join("sd-" + w for w in words) + '"></div>\n'
+    return None
+
+
+def _slide_comments(state):
+    for t in state.tokens:
+        if t.type == "html_block":
+            out = slide_comment_html(t.content)
+            if out is not None:
+                t.content = out
+
+
 def note_kind(params):
     """`:::note info` の、`:::` のあと（"note info"）から、種類を返す。注釈ブロックでなければ None。"""
     words = (params or "").split()
@@ -43,6 +76,14 @@ def _render_note(self, tokens, idx, options, env):
     if tok.nesting == 1:
         tok.attrJoin("class", "md-note md-note-" + (note_kind(tok.info) or "info"))
     return self.renderToken(tokens, idx, options, env)
+
+
+def _class_renderer(cls):
+    def render(self, tokens, idx, options, env):
+        if tokens[idx].nesting == 1:
+            tokens[idx].attrJoin("class", cls)
+        return self.renderToken(tokens, idx, options, env)
+    return render
 
 
 def _footnote_caption(self, tokens, idx, options, env):
@@ -106,6 +147,9 @@ def apply(md):
     md.add_render_rule("footnote_caption", _footnote_caption)
     md.use(container_plugin, name="note", validate=_validate_note, render=_render_note)
     md.core.ruler.push("github_alerts", _alerts)
+    md.core.ruler.push("slide_comments", _slide_comments)
+    for name, cls in (("columns", "deck-columns"), ("col", "deck-col")):          # 段組み（発表用）
+        md.use(container_plugin, name=name, render=_class_renderer(cls))
 
 
 # ---- コードブロックの情報行（```ruby:app.rb、```diff_ruby）

@@ -169,6 +169,29 @@ def save_pdf(window, o, ranges, path):
     return path
 
 
+def save_pdf_sized(window, path, width_px, height_px, margin_mm=0):
+    """用紙の大きさを px（96dpi）で指定して、PDF にする。発表のスライド（1 ページがスライド 1 枚）と配布資料に使う。
+
+    背景も出し、ヘッダー・フッターは付けない。ページ範囲は指定しない（全ページ）。
+    """
+    import Microsoft.Web.WebView2.Core as C
+
+    def start():
+        s = _core(window).Environment.CreatePrintSettings()
+        s.Orientation = C.CoreWebView2PrintOrientation.Portrait
+        s.PageWidth, s.PageHeight = width_px / 96.0, height_px / 96.0
+        s.MarginTop = s.MarginBottom = s.MarginLeft = s.MarginRight = margin_mm * INCH_PER_MM
+        s.ScaleFactor = 1.0
+        s.ShouldPrintBackgrounds = True
+        s.ShouldPrintHeaderAndFooter = False
+        return _core(window).PrintToPdfAsync(path, s)
+
+    ok = _wait(_on_ui(window, start))
+    if not ok or not os.path.exists(path):
+        raise PrintError("PDF を作れませんでした")
+    return path
+
+
 def preview_pdf(window, o, ranges):
     """一時 PDF を作り、既定の PDF 表示アプリで開く（印刷の仕上がり確認用）。"""
     fd, path = tempfile.mkstemp(suffix=".pdf", prefix="mdpreview_")

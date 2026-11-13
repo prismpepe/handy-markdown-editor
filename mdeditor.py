@@ -26,6 +26,7 @@ import cjk_emphasis
 import clipboard
 import dialogs
 import drafts
+import deck
 import filedrop
 import highlight
 import mdext
@@ -260,6 +261,7 @@ class Api:
         self._picked_templates = set()      # 利用者が「ファイルを選ぶ」で選んだテンプレート（正規化したパス）
         self._doc_dir = None      # いま編集中の文書のフォルダー（Vega-Lite のデータ読み込みの基準）
         self._start_path = start_path
+        self._deck = deck.DeckHost(resource_path, lambda: os.path.dirname(settings_path()))
         self._dirty = False
         self._closing = False
         self._fonts = None
@@ -303,6 +305,25 @@ class Api:
     @staticmethod
     def _all_prefs(settings):
         return {**uiprefs.clean_layout(settings.get("prefs")), **uiprefs.clean_prefs(settings)}
+
+    # --- 発表（スライドショー。deck.py）-------------------------------------
+    def deck_prepare(self, doc_path=None):
+        return self._deck.prepare(doc_path if isinstance(doc_path, str) else None)
+
+    def deck_theme_css(self, theme_id, doc_path=None):
+        return self._deck.theme_css(theme_id, doc_path if isinstance(doc_path, str) else None)
+
+    def deck_make_theme(self, doc_path=None):
+        return self._deck.make_sample_theme(doc_path if isinstance(doc_path, str) else None)
+
+    def deck_open(self, html, opts):
+        return self._deck.open(html, opts)
+
+    def deck_export_pdf(self, html, mode, path):
+        return self._deck.export_pdf(html, mode, path)
+
+    def deck_close(self):
+        self._deck.close()
 
     def get_prefs(self):
         return self._all_prefs(load_settings())
@@ -1144,10 +1165,13 @@ def build_html():
         find = f.read()
     with open(resource_path("print.js"), encoding="utf-8") as f:
         print_js = f.read()
+    with open(resource_path("deck_ui.js"), encoding="utf-8") as f:
+        deck_ui = f.read()
     return (html.replace("/*VENDOR_CSS*/", css)
                 .replace("/*FORMAT_JS*/", fmt)
                 .replace("/*FIND_JS*/", find)
                 .replace("/*PRINT_JS*/", print_js)
+                .replace("/*DECK_UI_JS*/", deck_ui)
                 .replace("__APP_VERSION__", APP_VERSION)
                 .replace("/*VENDOR_JS*/", js.replace("</script", "<\\/script")))
 
