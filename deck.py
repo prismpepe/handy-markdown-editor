@@ -198,6 +198,43 @@ def make_sample_theme(doc_path=None, user_dir=None):
     return {"error": None, "path": path}
 
 
+_MARK_TOOLS = ("pen", "marker", "line", "arrow")
+_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+_MARK_ID = re.compile(r"^[ap][0-9]{1,6}$")
+
+
+def _num(v, lo, hi):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and lo <= v <= hi
+
+
+def clean_mark(m):
+    """書き込み（線）の操作を検査して、安全な形にして返す。正しくなければ None。
+    o: b（線を始める: s スライド・id・t 種類・c 色・w 太さ・p 点）、a（点を足す）、u（1 本戻す）、c（スライドを消す）、C（すべて消す）。
+    点は、スライド上の 0〜1 の位置（少しはみ出してもよい）。"""
+    if not isinstance(m, dict):
+        return None
+    o = m.get("o")
+    if o == "C":
+        return {"o": "C"}
+    if o in ("u", "c"):
+        return {"o": o, "s": int(m["s"])} if _num(m.get("s"), 0, 9999) else None
+    if o not in ("b", "a") or not isinstance(m.get("id"), str) or not _MARK_ID.match(m["id"]):
+        return None
+    pts = m.get("p")
+    if not isinstance(pts, list) or not 1 <= len(pts) <= 80:
+        return None
+    clean = []
+    for q in pts:
+        if not (isinstance(q, list) and len(q) == 2 and _num(q[0], -0.5, 1.5) and _num(q[1], -0.5, 1.5)):
+            return None
+        clean.append([float(q[0]), float(q[1])])
+    if o == "a":
+        return {"o": "a", "id": m["id"], "p": clean}
+    if not (_num(m.get("s"), 0, 9999) and m.get("t") in _MARK_TOOLS and isinstance(m.get("c"), str) and _COLOR.match(m["c"]) and _num(m.get("w"), 0.5, 200)):
+        return None
+    return {"o": "b", "s": int(m["s"]), "id": m["id"], "t": m["t"], "c": m["c"], "w": float(m["w"]), "p": clean}
+
+
 class _Bridge:
     """発表用のウィンドウの JavaScript から呼ぶもの。ウィンドウごとに 1 つ（役割: audience / presenter）。
 
@@ -375,6 +412,15 @@ class DeckHost:
                     safe[key] = None
                 elif isinstance(val, (int, float)) and not isinstance(val, bool) and -0.5 <= val <= 1.5:
                     safe[key] = float(val)
+        mk = clean_mark(state.get("mk")) if "mk" in state else None
+        if mk is not None:
+            safe["mk"] = mk
+        for key, hi in (("pc", 9), ("pt", 3)):
+            val = state.get(key)
+            if isinstance(val, int) and not isinstance(val, bool) and 0 <= val <= hi:
+                safe[key] = val
+        if isinstance(state.get("dw"), bool):
+            safe["dw"] = state["dw"]
         lz = state.get("lz")
         if isinstance(lz, (int, float)) and not isinstance(lz, bool):
             safe["lz"] = min(160.0, max(10.0, float(lz)))

@@ -142,6 +142,37 @@ def st(d):
     return json.loads(d.evaluate_js("JSON.stringify(Deck.state())"))
 
 
+def mouse(win, sel, kind, u, v, btn=0, buttons=0, **mods):
+    win.evaluate_js("(() => { const el = document.querySelector(%s), r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent(%s, Object.assign({clientX: r.left + r.width * %s, clientY: r.top + r.height * %s, button: %s, buttons: %s, bubbles: true, cancelable: true}, %s))); })()" % (
+        json.dumps(sel), json.dumps(kind), u, v, btn, buttons, json.dumps(mods)))
+    time.sleep(.15)
+
+
+def drag(win, sel, u0, v0, u1, v1, click=False, **mods):
+    # 押す → 動かす → 離す を、1 回の呼び出しで行う（click=True なら、離した直後に click も届ける。実際のブラウザーと同じ順序）
+    win.evaluate_js("(() => { const el = document.querySelector(%s), r = el.getBoundingClientRect(); const P = (u, v) => [r.left + r.width * u, r.top + r.height * v]; const mods = %s;"
+                    " const fire = (t, p, btn, bs) => el.dispatchEvent(new MouseEvent(t, Object.assign({clientX: p[0], clientY: p[1], button: btn, buttons: bs, bubbles: true, cancelable: true}, mods)));"
+                    " const a = P(%s, %s), m = P(%s, %s), b = P(%s, %s);"
+                    " fire('mousedown', a, 0, 1); fire('mousemove', m, 0, 1); fire('mousemove', b, 0, 1); fire('mouseup', b, 0, 0);"
+                    " if (%s) fire('click', b, 0, 0); })()" % (
+                        json.dumps(sel), json.dumps(mods), u0, v0, (u0 + u1) / 2, (v0 + v1) / 2, u1, v1, 'true' if click else 'false'))
+    time.sleep(.5)
+
+
+def middle(win, sel):
+    mouse(win, sel, 'mousedown', 0.5, 0.5, 1, 4)
+    mouse(win, sel, 'mouseup', 0.5, 0.5, 1, 0)
+    time.sleep(.4)
+
+
+def svg_count(win, tag):
+    return win.evaluate_js("(document.getElementById('ink') ? document.getElementById('ink') : document.querySelector('svg.ink')).querySelectorAll(%s).length" % json.dumps(tag))
+
+
+def last_attr(win, name):
+    return win.evaluate_js("document.querySelector('#ink, svg.ink').lastElementChild.getAttribute(%s)" % json.dumps(name))
+
+
 def drive():
     time.sleep(8)
     js("%s(%s)" % (OPEN, json.dumps(DOC)))
@@ -262,6 +293,65 @@ def drive():
     check("その位置で開く", st(d)['i'], 2)
     d.destroy(); dwin.clear()
 
+    # --- 書き込み（マーキング）
+    html, _ = build()
+    d, ok = open_deck(html); time.sleep(1)
+    SC = '#scaler'
+    check("書き込み: 初めは入っている（ドラッグで線が引ける）", [st(d)['draw'], st(d)['ink']], [True, 0])
+    d.evaluate_js("document.getElementById('stage').dispatchEvent(new MouseEvent('click', {bubbles: true, button: 0}))"); time.sleep(.3)
+    check("動かさないクリックは、これまでどおり次のスライドへ", st(d)['i'], 1)
+    key(d, 'Home')
+    drag(d, SC, 0.2, 0.3, 0.6, 0.5, click=True)
+    check("左ボタンのドラッグで、線が引ける", [st(d)['ink'], st(d)['tool'], svg_count(d, 'polyline')], [1, 'pen', 1])
+    check("ドラッグのあとのクリックでは、スライドは進まない", st(d)['i'], 0)
+    first = d.evaluate_js("document.querySelector('#ink polyline').getAttribute('points').split(' ')[0].split(',').map(Number)")
+    check("線の始まりは、押した位置（スライド上の 0.2・0.3）", [abs(first[0] - 0.2 * 1280) < 2, abs(first[1] - 0.3 * 720) < 2], [True, True])
+    drag(d, SC, 0.1, 0.8, 0.5, 0.8, shiftKey=True)
+    check("Shift+ドラッグで、直線", [st(d)['ink'], svg_count(d, 'line')], [2, 1])
+    drag(d, SC, 0.1, 0.9, 0.4, 0.6, ctrlKey=True)
+    check("Ctrl+ドラッグで、矢印（線と、矢じり）", [st(d)['ink'], svg_count(d, 'line'), svg_count(d, 'polyline')], [3, 2, 2])
+    middle(d, SC)
+    check("中ボタンで、ペンの色が変わる（赤 → 青）", st(d)['color'], 1)
+    check("中ボタンでは、スライドは動かない", st(d)['i'], 0)
+    drag(d, SC, 0.7, 0.2, 0.9, 0.4)
+    check("変えた色で、線が引ける", last_attr(d, 'stroke'), '#1f6feb')
+    d.evaluate_js("Deck.goto(1)"); time.sleep(.3)
+    mouse(d, SC, 'contextmenu', 0.5, 0.5, 2, 2); time.sleep(.3)
+    check("右クリックは、書き込みが入っていても、これまでどおり前のスライドへ", st(d)['i'], 0)
+    for _ in range(4):
+        middle(d, SC)
+    check("中ボタンを続けると、色が一巡する（青 → 緑 → 黄 → 黒 → 赤）", st(d)['color'], 0)
+    key(d, 'c'); check("C キーでも、ペンの色が変わる（赤 → 青）", st(d)['color'], 1); key(d, 'c'); key(d, 'c'); key(d, 'c'); key(d, 'c')
+    lz0 = st(d)['lz']
+    drag(d, SC, 0.7, 0.6, 0.9, 0.7)
+    w_small = float(last_attr(d, 'stroke-width'))
+    key(d, ']'); key(d, ']'); key(d, ']'); time.sleep(.4)
+    drag(d, SC, 0.7, 0.7, 0.9, 0.8)
+    w_big = float(last_attr(d, 'stroke-width'))
+    check("] でペンの大きさが変わる（30 → 40 → 48 → 60）", [lz0, st(d)['lz']], [30, 60])
+    check("大きさに応じて、ペンの太さも変わる", w_big > w_small, True)
+    key(d, '['); key(d, '['); key(d, '['); time.sleep(.3)
+    key(d, 'm')
+    check("M でペンの種類が変わる（ペン → マーカー）", st(d)['tool'], 'marker')
+    drag(d, SC, 0.1, 0.1, 0.4, 0.12)
+    check("マーカーは、半透明の太い線", last_attr(d, 'stroke-opacity'), '0.38')
+    n0 = st(d)['ink']
+    d.evaluate_js("Deck.goto(1)"); time.sleep(.4)
+    check("スライドを変えると、書き込みは見えなくなる（スライドごと）", [st(d)['ink'], svg_count(d, 'polyline')], [0, 0])
+    d.evaluate_js("Deck.goto(0)"); time.sleep(.4)
+    check("同じスライドに戻ると、書いたものが残っている", st(d)['ink'], n0)
+    key(d, 'u'); check("U で 1 本戻る", st(d)['ink'], n0 - 1)
+    key(d, 'e'); check("E で、このスライドの書き込みが消える", [st(d)['ink'], svg_count(d, 'polyline') + svg_count(d, 'line')], [0, 0])
+    d.evaluate_js("Deck.goto(1)"); time.sleep(.3)
+    drag(d, SC, 0.2, 0.2, 0.5, 0.5); d.evaluate_js("Deck.goto(2)"); time.sleep(.3); drag(d, SC, 0.2, 0.2, 0.5, 0.5)
+    check("別のスライドにも書ける", st(d)['inkAll'], 2)
+    key(d, 'E'); check("Shift+E で、すべてのスライドの書き込みが消える", [st(d)['inkAll'], st(d)['ink']], [0, 0])
+    key(d, 'd'); check("D で書き込みを切る", st(d)['draw'], False)
+    drag(d, SC, 0.2, 0.2, 0.5, 0.5)
+    check("書き込みを切ると、ドラッグしても線は引けない", st(d)['inkAll'], 0)
+    key(d, 'd')
+    d.destroy(); dwin.clear()
+
     # --- レーザーの大きさを、発表の画面で選べる
     js("window.__b = null; api.deck_prepare(null).then(a => deckBuild({theme: 'light', ratio: '16:9', fromCursor: false, assets: a.assets, title: 't', laser: 48})).then(b => { window.__b = b; });")
     wait("window.__b !== null", 40)
@@ -301,6 +391,35 @@ def drive():
     check("発表者ビューで ] を 2 回押すと、大きくなる（24 → 30 → 40）", [aud.evaluate_js("Deck.state().lz"), pres.evaluate_js("Deck.state().lz")], [40, 40])
     key(pres, "["); time.sleep(.8)
     check("使い終わったら、既定の 30 に戻しておく", [aud.evaluate_js("Deck.state().lz"), abs(aud.evaluate_js("Deck.state().lpx") - round(30 * aud.evaluate_js("Math.min(innerWidth / 1280, innerHeight / 720)"))) <= 1], [30, True])
+    # --- 書き込み: 発表者ビューで書くと、聴衆の画面にも出る
+    drag(pres, '#presenter .cur-pane .inner', 0.3, 0.4, 0.7, 0.6)
+    time.sleep(.8)
+    check("発表者ビューのドラッグで、聴衆の画面にも線が出る", [st(pres)['ink'], st(aud)['ink']], [1, 1])
+    fa = aud.evaluate_js("document.querySelector('#ink polyline').getAttribute('points').split(' ')[0].split(',').map(Number)")
+    check("線の位置が、スライド上で同じ（0.3・0.4）", [abs(fa[0] - 0.3 * 1280) < 3, abs(fa[1] - 0.4 * 720) < 3], [True, True])
+    middle(pres, '#presenter .cur-pane .inner'); time.sleep(.5)
+    check("発表者ビューの中ボタンで、ペンの色が変わり、聴衆の画面にも合う", [st(pres)['color'], st(aud)['color']], [1, 1])
+    drag(aud, '#scaler', 0.1, 0.1, 0.3, 0.2); time.sleep(.8)
+    check("聴衆の画面で書いた線も、発表者ビューに出る（青）", [st(aud)['ink'], st(pres)['ink'], pres.evaluate_js("document.querySelector('#presenter svg.ink').lastElementChild.getAttribute('stroke')")], [2, 2, '#1f6feb'])
+    key(pres, 'u'); time.sleep(.8)
+    check("発表者ビューの U で、聴衆の画面の線も 1 本戻る", [st(pres)['ink'], st(aud)['ink']], [1, 1])
+    key(aud, 'e'); time.sleep(.8)
+    check("聴衆の画面の E で、発表者ビューの書き込みも消える", [st(pres)['ink'], st(aud)['ink']], [0, 0])
+    key(pres, 'd'); time.sleep(.8)
+    check("D の入切が、両方の画面にそろう", [st(pres)['draw'], st(aud)['draw']], [False, False]); key(pres, 'd'); time.sleep(.5)
+    # --- 発表者ビュー: スライドの上のクリックで進める（左: 次、右: 前）
+    key(pres, 'c'); key(pres, 'c'); key(pres, 'c'); key(pres, 'c'); time.sleep(.4)
+    i0 = st(pres)['i']
+    pres.evaluate_js("document.querySelector('#presenter .cur-pane .inner').dispatchEvent(new MouseEvent('click', {bubbles: true, button: 0}))"); time.sleep(.8)
+    check("発表者ビューの「いまのスライド」を左クリックすると、次へ進む（聴衆の画面も）", [st(pres)['i'], st(aud)['i']], [i0 + 1, i0 + 1])
+    mouse(pres, '#presenter .cur-pane .inner', 'contextmenu', 0.5, 0.5, 2, 2); time.sleep(.8)
+    check("右クリックで、前へ戻る（聴衆の画面も）", [st(pres)['i'], st(aud)['i']], [i0, i0])
+    pres.evaluate_js("document.querySelector('#presenter .next-pane .inner').dispatchEvent(new MouseEvent('click', {bubbles: true, button: 0}))"); time.sleep(.8)
+    check("「次のスライド」を左クリックしても、次へ進む", [st(pres)['i'], st(aud)['i']], [i0 + 1, i0 + 1])
+    pres.evaluate_js("document.getElementById('pprev').click()"); time.sleep(.8)
+    drag(pres, '#presenter .cur-pane .inner', 0.3, 0.3, 0.5, 0.4, click=True)
+    check("発表者ビューで書いたあとのクリックでは、進まない（書き込みと区別される）", [st(pres)['i'], st(aud)['i'], st(pres)['ink']], [i0, i0, 1])
+    key(pres, 'e'); time.sleep(.6)
     key(pres, "r"); time.sleep(.8)
     check("発表者ビューで R を押すと、聴衆の画面の比率も変わる（16:10）", [st(pres)["ratio"], st(aud)["ratio"], st(aud)["W"]], ["16:10", "16:10", 1152])
     key(pres, "r"); key(pres, "r"); key(pres, "r"); time.sleep(.8)

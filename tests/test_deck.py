@@ -350,3 +350,39 @@ def test_発表の設定は_項目ごとに足される_別の項目を消さな
     api.set_prefs({"deck": {"theme": "dark", "ratio": "4:3"}})
     api.set_prefs({"deck": {"laser": 48}})
     assert api.get_prefs()["deck"] == {"theme": "dark", "ratio": "4:3", "laser": 48}
+
+
+def test_書き込みの操作の検査_正しいもの():
+    b = {"o": "b", "s": 2, "id": "a12", "t": "arrow", "c": "#E5302A", "w": 6, "p": [[0.1, 0.2], [0.5, 0.6]]}
+    assert deck.clean_mark(b) == {"o": "b", "s": 2, "id": "a12", "t": "arrow", "c": "#E5302A", "w": 6.0, "p": [[0.1, 0.2], [0.5, 0.6]]}
+    assert deck.clean_mark({"o": "a", "id": "p3", "p": [[0, 1]]}) == {"o": "a", "id": "p3", "p": [[0.0, 1.0]]}
+    assert deck.clean_mark({"o": "u", "s": 4}) == {"o": "u", "s": 4}
+    assert deck.clean_mark({"o": "c", "s": 0}) == {"o": "c", "s": 0}
+    assert deck.clean_mark({"o": "C"}) == {"o": "C"}
+
+
+def test_書き込みの操作の検査_正しくないものは捨てる():
+    good = {"o": "b", "s": 0, "id": "a1", "t": "pen", "c": "#112233", "w": 5, "p": [[0.5, 0.5]]}
+    assert deck.clean_mark(good) is not None
+    bad = [
+        {**good, "id": "x1"}, {**good, "id": "a"}, {**good, "id": "a1;alert(1)"},                      # 識別子の形
+        {**good, "c": "red"}, {**good, "c": "#12345"}, {**good, "c": "url(javascript:x)"},               # 色は #rrggbb だけ
+        {**good, "t": "eraser"}, {**good, "w": 0}, {**good, "w": 9999}, {**good, "w": True},             # 種類・太さ
+        {**good, "s": -1}, {**good, "s": "0"}, {**good, "s": 99999},                                      # スライドの番号
+        {**good, "p": []}, {**good, "p": [[0.1]]}, {**good, "p": [[9, 9]]}, {**good, "p": [["a", "b"]]},  # 点
+        {**good, "p": [[0.1, 0.1]] * 81}, {**good, "p": "x"},
+        {"o": "z"}, {"o": "a", "id": "a1", "p": []}, {"o": "u"}, {"o": "u", "s": "x"}, "x", None, 5, [],
+    ]
+    for m in bad:
+        assert deck.clean_mark(m) is None, m
+
+
+def test_書き込みは受け渡す_ペンの状態も_決まった値だけ():
+    h = host_with(["audience", "presenter"])
+    mk = {"o": "b", "s": 1, "id": "p5", "t": "line", "c": "#1f6feb", "w": 5, "p": [[0.2, 0.3]]}
+    h._relay("presenter", json.dumps({"mk": mk, "pc": 2, "pt": 3, "dw": False}))
+    call = h._windows["audience"].calls[0]
+    assert '"mk"' in call and '"id": "p5"' in call and '"pc": 2' in call and '"pt": 3' in call and '"dw": false' in call
+    h._windows["audience"].calls.clear()
+    h._relay("presenter", json.dumps({"mk": {**mk, "c": "red"}, "pc": 99, "pt": -1, "dw": "no"}))
+    assert h._windows["audience"].calls[0] == "window.Deck && window.Deck.apply({})"
