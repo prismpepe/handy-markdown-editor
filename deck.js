@@ -13,8 +13,8 @@
   let idx = Math.min(Math.max(0, cfg.start | 0), Math.max(0, slides.length - 1));
   let ratioKey = RATIOS.some(r => r[0] === cfg.ratio) ? cfg.ratio : '16:9';
   let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 2, ptr = { x: 0, y: 0 };
-  let overviewOn = false, sel = 0, numBuf = '', startTime = null, timerOn = true, pausedAt = 0, noteSize = 22, lastWheel = 0, idleTimer = null;
-  const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black, t: startTime })); };
+  let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
+  const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black })); };
 
   function toast(text) {
     const t = $('toast'); t.textContent = text; t.classList.add('on');
@@ -78,7 +78,6 @@
     i = Math.min(Math.max(0, i), slides.length - 1);
     slides[idx].classList.remove('cur'); idx = i; slides[idx].classList.add('cur');
     $('hudbar').style.width = (slides.length > 1 ? idx / (slides.length - 1) * 100 : 100) + '%';
-    if (startTime === null && idx > 0) startTime = Date.now();
     if (role === 'presenter') renderPresenter();
     if (!remote) sync();
   }
@@ -87,6 +86,7 @@
   function setScreen(kind, remote) {
     black = kind || '';
     $('screen').className = black ? black : '';
+    const pb = $('pblack'); if (pb) { pb.textContent = black ? '暗転を解除' : '暗転'; pb.classList.toggle('on', !!black); }
     if (!remote) sync();
   }
 
@@ -135,7 +135,7 @@
       + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>';
     $('pprev').onclick = prev; $('pnext').onclick = next;
     $('pblack').onclick = () => setScreen(black ? '' : 'black');
-    $('ptimer').onclick = () => { startTime = idx > 0 ? Date.now() : null; pausedAt = 0; tick(); };
+    $('ptimer').onclick = () => { startTime = Date.now(); tick(); };
     $('pnoteminus').onclick = () => { noteSize = Math.max(12, noteSize - 2); p.style.setProperty('--note-size', noteSize + 'px'); };
     $('pnoteplus').onclick = () => { noteSize = Math.min(60, noteSize + 2); p.style.setProperty('--note-size', noteSize + 'px'); };
   }
@@ -161,7 +161,7 @@
     if (role !== 'presenter') return;
     const now = new Date(); const c = $('pclock'); if (c) c.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
     const e = $('pelapsed'); if (!e) return;
-    const sec = startTime === null ? 0 : Math.floor((Date.now() - startTime) / 1000);
+    const sec = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
     e.textContent = pad(Math.floor(sec / 60)) + ':' + pad(sec % 60);
   }
 
@@ -257,8 +257,8 @@
 
   // ---- 外から呼ぶもの（アプリの側が、別のウィンドウの状態を合わせる / 試験）
   window.Deck = {
-    apply: function (s) { if (!s) return; if (typeof s.black === 'string') setScreen(s.black, true); if (typeof s.i === 'number') show(s.i, true); if (s.t !== undefined && s.t !== null) startTime = s.t; },
-    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, overview: overviewOn, role: role, started: startTime !== null }),
+    apply: function (s) { if (!s) return; if (typeof s.black === 'string') setScreen(s.black, true); if (typeof s.i === 'number') show(s.i, true); },
+    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, overview: overviewOn, role: role, t0: startTime }),
     next: next, prev: prev, goto: i => show(i), overflow: overflowList, shrunk: shrunkList, setRatio: setRatio, fitAll: fitAll, print: printDeck,
     preparePrint: preparePrint, endPrint: endPrint,
   };
@@ -283,6 +283,7 @@
       document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
     });
     $('stage').addEventListener('click', e => { if (e.button === 0 && !overviewOn) next(); });
+    $('screen').addEventListener('click', () => setScreen(''));                                          // 暗転は、クリックでも戻る
     $('stage').addEventListener('contextmenu', e => { e.preventDefault(); prev(); });
     document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a'); if (a) e.preventDefault(); }, true);     // 発表中は、リンクを開かない（ウィンドウが別のページに変わらないように）
     document.addEventListener('wheel', e => {

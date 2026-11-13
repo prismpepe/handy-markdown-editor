@@ -223,6 +223,7 @@ class DeckHost:
         self._windows = {}
         self._html = None
         self._opts = {}
+        self._t0 = 0
         self._lock = threading.RLock()
 
     # ---- 部品
@@ -254,7 +255,7 @@ class DeckHost:
         return infos[index] if isinstance(index, int) and 0 <= index < len(infos) else None
 
     def _make(self, role, title, screen, fullscreen):
-        html = self._html.replace('"__DECK_ROLE__"', json.dumps(role))
+        html = self._html.replace('"__DECK_ROLE__"', json.dumps(role)).replace('"__DECK_T0__"', str(self._t0))       # 経過時間の起点は、2 つのウィンドウで同じ
         kw = dict(html=html, js_api=_Bridge(self, role), background_color="#000000", text_select=False, zoomable=False)
         if screen is not None:
             kw["screen"] = screen
@@ -278,6 +279,7 @@ class DeckHost:
             self.close()
             self._html = html
             self._opts = dict(opts)
+            self._t0 = int(time.time() * 1000)
             title = str(opts.get("title") or "発表")[:120]
             d = default_screens()
             aud = opts.get("screen")

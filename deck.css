@@ -88,6 +88,8 @@ body.presenter #hud { display: none; }
 #presenter .bar button:hover { border-color: #4c8dff; }
 #presenter .bar .grow { flex: 1; }
 #presenter .warnline { color: #ffb347; }
+#presenter .bar button.on { border-color: #ff7b72; color: #ffb4ab; }
+body.presenter #screen { display: none !important; }              /* 暗転は、聴衆の画面だけ。発表者ビューは、操作できるまま */
 
 /* 印刷（P: スライド、Shift+P: ノート付きの配布資料） */
 @media print {

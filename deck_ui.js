@@ -77,7 +77,7 @@ async function buildDeckHtml(opts) {
     + assets.css + '\n' + collectExportCss() + '\n' + katexCss + '\n/* テーマ */\n' + themeCss + '\n</style>\n</head>\n<body>\n'
     + '<div id="stage"><div id="scaler">\n' + body + '\n</div></div>\n'
     + '<div id="hud"><i id="hudbar"></i></div><div id="toast"></div><div id="screen"></div><div id="laser"></div><div id="help"></div><div id="overview"></div><div id="presenter"></div><div id="printroot"></div>\n'
-    + '<script>window.DECK = {role: "__DECK_ROLE__", ratio: ' + deckJson(opts.ratio) + ', start: ' + start + ', title: ' + deckJson(title) + '};<\/script>\n'
+    + '<script>window.DECK = {role: "__DECK_ROLE__", t0: "__DECK_T0__", ratio: ' + deckJson(opts.ratio) + ', start: ' + start + ', title: ' + deckJson(title) + '};<\/script>\n'
     + '<script>\n' + assets.js.replace(/<\/script/gi, '<\\/script') + '\n<\/script>\n</body>\n</html>\n';
   return { html, warnings, count: slides.length, start };
 }
