@@ -44,7 +44,7 @@ open(DOC, 'w', encoding='utf-8').write("""# 発表のテスト
 ## 議題
 
 - 修繕計画について
-- 会計報告
+- 会計報告（`Z` キーで拡大）
 - [外部リンク](https://example.com)
 
 <!-- note: 議題を読み上げる -->
@@ -191,6 +191,8 @@ def drive():
     check("最初のスライド・7 枚・単独", [s['i'], s['n'], s['role']], [0, 7, 'standalone'])
     check("画面に合わせて拡大縮小される（1280×720 の窓で、倍率はほぼ 1 以下）", 0.4 < s['scale'] <= 1.0, True)
     check("スライドの種類（lead）が付く", d.evaluate_js("document.querySelectorAll('.slide')[0].classList.contains('sd-lead')"), True)
+    check("スライドの中のインラインコードは、まわりの文字に近い大きさで出る（13px 固定で小さくならない）",
+          d.evaluate_js("(() => { const c = document.querySelectorAll('.slide')[1].querySelector('li code'); return Math.round(parseFloat(getComputedStyle(c).fontSize) / parseFloat(getComputedStyle(c.closest('li')).fontSize) * 10) / 10; })()"), 0.9)
     check("発表者ノートは、スライドに付き、画面には出ない",
           d.evaluate_js("[document.querySelectorAll('.slide')[0].querySelector('.slide-note').textContent.includes('時間は 5 分'), getComputedStyle(document.querySelector('.slide-note')).display]"), [True, 'none'])
     d.evaluate_js("Deck.goto(4)"); time.sleep(.4)

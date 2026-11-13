@@ -19,7 +19,9 @@ body { font-family: "Yu Gothic UI", "Segoe UI", sans-serif; -webkit-user-select:
 .slide .md-body > :first-child { margin-top: 0; }
 .slide .md-body ul, .slide .md-body ol { margin: .3em 0; padding-left: 1.4em; }
 .slide .md-body li { margin: .2em 0; }
+.slide .md-body code { font-size: .9em; }      /* 本文の code は 13px 固定。スライドでは、まわりの文字に合わせる */
 .slide .md-body pre { font-size: .8em; }
+.slide .md-body pre code { font-size: 1em; }
 .slide .md-body table { font-size: .85em; }
 .slide .md-body img { max-width: 100%; max-height: 520px; }
 .slide .md-body hr.footnotes-sep { display: none; }
