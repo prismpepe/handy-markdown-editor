@@ -197,6 +197,7 @@ def drive():
 
     # --- スライド一覧
     key(d, 'g'); check("G でスライド一覧が開く（7 枚）", [st(d)['overview'], d.evaluate_js("document.querySelectorAll('#overview .thumb').length")], [True, 7])
+    check("一覧のサムネイルでも、表紙は中央寄せのまま", d.evaluate_js("getComputedStyle(document.querySelector('#overview .thumb .slide')).display"), "flex")
     fit = d.evaluate_js("Math.round(parseFloat(document.querySelectorAll('.slide')[3].dataset.fit) * 100)")
     check("一覧に、縮小と収まらない印が付く", d.evaluate_js("[...document.querySelectorAll('#overview .thumb .warn')].map(e => e.textContent)"), ["縮小 %d%%" % fit, "収まらない"])
     key(d, 'ArrowRight'); key(d, 'Enter'); check("一覧で → と Enter を押すと、そのスライドへ（4 → 5 枚目）", [st(d)['overview'], st(d)['i']], [False, 4])
@@ -218,6 +219,7 @@ def drive():
     pp = json.loads(d.evaluate_js("JSON.stringify(Deck.preparePrint(false))"))
     check("印刷（スライド）: 1 スライド 1 ページ、ページの大きさはスライド", [pp['pages'], pp['w'], pp['h'], d.evaluate_js("document.querySelectorAll('#printroot .page').length")], [7, 1280, 720, 7])
     check("印刷（スライド）: 用紙の指定がスライドの大きさ", d.evaluate_js("document.getElementById('pagestyle').textContent.includes('1280px 720px')"), True)
+    check("印刷（スライド）: 表紙は、中央寄せのまま（画面と同じ配置）", d.evaluate_js("getComputedStyle(document.querySelector('#printroot .page .slide')).display"), "flex")
     d.evaluate_js("Deck.endPrint()")
     check("印刷の紙面は、片付けられる", d.evaluate_js("[document.querySelectorAll('#printroot .page').length, !!document.getElementById('pagestyle')]"), [0, False])
     pp = json.loads(d.evaluate_js("JSON.stringify(Deck.preparePrint(true))"))
@@ -239,6 +241,18 @@ def drive():
     check("自分のテーマ: 背景色と、埋め込まれた背景画像（データ）が効く",
           d.evaluate_js("[getComputedStyle(document.querySelector('.slide.cur')).backgroundColor, document.querySelector('style').textContent.includes('data:image/png;base64')]"), ['rgb(255, 243, 205)', True])
     d.destroy(); dwin.clear()
+    # --- 見本のテーマ: 表紙が、見える（背景と文字が、同じ色にならない）
+    mk = api.deck_make_theme(DOC)
+    check("テーマの見本を作る", [mk["error"], os.path.isfile(mk["path"])], [None, True])
+    js("window.__tids = null; api.deck_prepare(%s).then(a => { window.__tids = a.themes; });" % json.dumps(DOC))
+    wait("window.__tids !== null")
+    sample_id = [t["id"] for t in json.loads(js("JSON.stringify(window.__tids)")) if t["name"] == "マイテーマ"][0]
+    html, _ = build(theme=sample_id)
+    d, ok = open_deck(html); time.sleep(1)
+    cover = json.loads(d.evaluate_js("JSON.stringify((() => { const s = document.querySelector('.slide.sd-lead'); return [getComputedStyle(s).backgroundColor, getComputedStyle(s.querySelector('.md-body')).color, getComputedStyle(s.querySelector('h1')).color]; })())"))
+    check("見本のテーマ: 表紙の背景と、文字・見出しの色が違う（空白に見えない）", [cover[0] != cover[1], cover[0] != cover[2]], [True, True])
+    check("見本のテーマ: 表紙の背景は、見出しの色（アクセント）そのものではなく、濃い色", cover[0], "rgb(180, 84, 26)")
+    d.destroy(); dwin.clear()
 
     # --- 編集中の位置から始める
     js("cm.setCursor({line: 20, ch: 0})")
@@ -258,6 +272,7 @@ def drive():
     aud, pres = ws['audience'], ws['presenter']
     aud.move(20, 20); aud.resize(900, 520); pres.move(960, 20); pres.resize(1000, 700); time.sleep(1)
     check("役割が分かれている", [st(aud)['role'], st(pres)['role']], ['audience', 'presenter'])
+    check("発表者ビューでも、表紙は聴衆の画面と同じ配置（中央寄せ）", pres.evaluate_js("[getComputedStyle(document.querySelector('.cur-pane .slide')).display, getComputedStyle(document.querySelector('.cur-pane .slide .md-body')).textAlign]"), ["flex", "center"])
     check("発表者ビューは、ノートと次のスライドを出す",
           pres.evaluate_js("[document.querySelector('#presenter .notes').textContent.includes('時間は 5 分'), document.querySelectorAll('#presenter .inner').length]"), [True, 2])
     pres.evaluate_js("document.getElementById('pnext').click()"); time.sleep(1)

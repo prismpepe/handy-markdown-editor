@@ -269,3 +269,23 @@ def test_設定の検査():
     assert uiprefs.clean_prefs({"deck": {"ratio": "9:16", "presenter": "yes", "screen": 99, "theme": ""}}) == {}
     assert uiprefs.clean_prefs({"deck": {"screen": True}}) == {}
     assert uiprefs.clean_prefs({"deck": "x"}) == {}
+
+
+def test_テーマの色の変数は_同じ規則の中で_互いを参照しない():
+    """--slide-bg: var(--slide-accent) と書いて、同じ規則の中で --slide-accent も書き換えると、背景が意図しない色になる
+    （見本のテーマの表紙が、白地に白い文字で空白に見えた不具合の再発防止）。"""
+    import re
+    sources = [css for _, css in deck.BUILTIN.values()] + [deck.SAMPLE_THEME]
+    for css in sources:
+        for body in re.findall(r"\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", css, flags=re.S)):
+            decl = dict(re.findall(r"(--[a-z-]+)\s*:\s*([^;]+);?", body))
+            for name, value in decl.items():
+                for ref in re.findall(r"var\((--[a-z-]+)\)", value):
+                    assert ref not in decl, (name, ref, body)
+
+
+def test_見本のテーマの表紙は_背景と文字が同じ色にならない():
+    import re
+    m = re.search(r"\.slide\.sd-lead \{([^}]*)\}", deck.SAMPLE_THEME)
+    decl = dict(re.findall(r"(--[a-z-]+)\s*:\s*([^;]+);", m.group(1)))
+    assert decl["--slide-bg"].startswith("#") and decl["--slide-bg"].lower() != decl["--slide-fg"].lower()

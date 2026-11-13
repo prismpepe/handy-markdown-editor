@@ -58,7 +58,8 @@ SAMPLE_THEME = """/* 発表のテーマ（自分用）。このファイルを�
   border-left: 18px solid var(--slide-accent);
 }
 .slide .md-body h1, .slide .md-body h2 { color: var(--slide-accent); }
-.slide.sd-lead { --slide-bg: var(--slide-accent); --slide-fg: #fff; --slide-accent: #fff; }
+/* 表紙: 背景の色は、色そのものを書く（--slide-bg: var(--slide-accent) と書くと、同じ規則の中で --slide-accent を書き換えているため、背景が白くなる） */
+.slide.sd-lead { --slide-bg: #b4541a; --slide-fg: #fff; --slide-accent: #fff; }
 /* 全スライドのフッター（左下）: */
 .slide::before { content: "資料の名前"; position: absolute; left: 80px; bottom: 16px; font-size: 18px; opacity: .55; }
 """

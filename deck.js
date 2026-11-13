@@ -92,7 +92,7 @@
 
   // ---- スライド一覧（G）
   function cloneSlide(src) {
-    const c = src.cloneNode(true); c.classList.remove('cur', 'measuring'); c.removeAttribute('id'); return c;
+    const c = src.cloneNode(true); c.classList.remove('cur', 'measuring'); c.classList.add('show'); c.removeAttribute('id'); return c;
   }
   function buildOverview() {
     const box = $('overview'); box.textContent = '';
