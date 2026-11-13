@@ -380,9 +380,9 @@ def test_書き込みの操作の検査_正しくないものは捨てる():
 def test_書き込みは受け渡す_ペンの状態も_決まった値だけ():
     h = host_with(["audience", "presenter"])
     mk = {"o": "b", "s": 1, "id": "p5", "t": "line", "c": "#1f6feb", "w": 5, "p": [[0.2, 0.3]]}
-    h._relay("presenter", json.dumps({"mk": mk, "pc": 2, "pt": 3, "dw": False}))
+    h._relay("presenter", json.dumps({"mk": mk, "pc": 2, "pt": 3}))
     call = h._windows["audience"].calls[0]
-    assert '"mk"' in call and '"id": "p5"' in call and '"pc": 2' in call and '"pt": 3' in call and '"dw": false' in call
+    assert '"mk"' in call and '"id": "p5"' in call and '"pc": 2' in call and '"pt": 3' in call
     h._windows["audience"].calls.clear()
-    h._relay("presenter", json.dumps({"mk": {**mk, "c": "red"}, "pc": 99, "pt": -1, "dw": "no"}))
+    h._relay("presenter", json.dumps({"mk": {**mk, "c": "red"}, "pc": 99, "pt": -1}))
     assert h._windows["audience"].calls[0] == "window.Deck && window.Deck.apply({})"

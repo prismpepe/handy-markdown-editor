@@ -419,8 +419,6 @@ class DeckHost:
             val = state.get(key)
             if isinstance(val, int) and not isinstance(val, bool) and 0 <= val <= hi:
                 safe[key] = val
-        if isinstance(state.get("dw"), bool):
-            safe["dw"] = state["dw"]
         lz = state.get("lz")
         if isinstance(lz, (int, float)) and not isinstance(lz, bool):
             safe["lz"] = min(160.0, max(10.0, float(lz)))

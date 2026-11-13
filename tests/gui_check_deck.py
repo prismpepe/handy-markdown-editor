@@ -159,12 +159,6 @@ def drag(win, sel, u0, v0, u1, v1, click=False, **mods):
     time.sleep(.5)
 
 
-def middle(win, sel):
-    mouse(win, sel, 'mousedown', 0.5, 0.5, 1, 4)
-    mouse(win, sel, 'mouseup', 0.5, 0.5, 1, 0)
-    time.sleep(.4)
-
-
 def svg_count(win, tag):
     return win.evaluate_js("(document.getElementById('ink') ? document.getElementById('ink') : document.querySelector('svg.ink')).querySelectorAll(%s).length" % json.dumps(tag))
 
@@ -297,7 +291,10 @@ def drive():
     html, _ = build()
     d, ok = open_deck(html); time.sleep(1)
     SC = '#scaler'
-    check("書き込み: 初めは入っている（ドラッグで線が引ける）", [st(d)['draw'], st(d)['ink']], [True, 0])
+    drag(d, SC, 0.2, 0.2, 0.4, 0.4)
+    check("レーザーポインターが切れていると、ドラッグしても書き込めない（書き込みは、L を入れているときだけ）", [st(d)['laser'], st(d)['ink']], [False, 0])
+    key(d, 'l')
+    check("L でレーザーポインターを入れると、書き込めるようになる", [st(d)['laser'], st(d)['draw']], [True, True])
     d.evaluate_js("document.getElementById('stage').dispatchEvent(new MouseEvent('click', {bubbles: true, button: 0}))"); time.sleep(.3)
     check("動かさないクリックは、これまでどおり次のスライドへ", st(d)['i'], 1)
     key(d, 'Home')
@@ -310,18 +307,16 @@ def drive():
     check("Shift+ドラッグで、直線", [st(d)['ink'], svg_count(d, 'line')], [2, 1])
     drag(d, SC, 0.1, 0.9, 0.4, 0.6, ctrlKey=True)
     check("Ctrl+ドラッグで、矢印（線と、矢じり）", [st(d)['ink'], svg_count(d, 'line'), svg_count(d, 'polyline')], [3, 2, 2])
-    middle(d, SC)
-    check("中ボタンで、ペンの色が変わる（赤 → 青）", st(d)['color'], 1)
-    check("中ボタンでは、スライドは動かない", st(d)['i'], 0)
+    key(d, 'c')
+    check("C キーで、ペンの色が変わる（赤 → 青）", st(d)['color'], 1)
     drag(d, SC, 0.7, 0.2, 0.9, 0.4)
     check("変えた色で、線が引ける", last_attr(d, 'stroke'), '#1f6feb')
     d.evaluate_js("Deck.goto(1)"); time.sleep(.3)
     mouse(d, SC, 'contextmenu', 0.5, 0.5, 2, 2); time.sleep(.3)
     check("右クリックは、書き込みが入っていても、これまでどおり前のスライドへ", st(d)['i'], 0)
     for _ in range(4):
-        middle(d, SC)
-    check("中ボタンを続けると、色が一巡する（青 → 緑 → 黄 → 黒 → 赤）", st(d)['color'], 0)
-    key(d, 'c'); check("C キーでも、ペンの色が変わる（赤 → 青）", st(d)['color'], 1); key(d, 'c'); key(d, 'c'); key(d, 'c'); key(d, 'c')
+        key(d, 'c')
+    check("C キーを続けると、色が一巡する（青 → 緑 → 黄 → 黒 → 赤）", st(d)['color'], 0)
     lz0 = st(d)['lz']
     drag(d, SC, 0.7, 0.6, 0.9, 0.7)
     w_small = float(last_attr(d, 'stroke-width'))
@@ -346,10 +341,9 @@ def drive():
     drag(d, SC, 0.2, 0.2, 0.5, 0.5); d.evaluate_js("Deck.goto(2)"); time.sleep(.3); drag(d, SC, 0.2, 0.2, 0.5, 0.5)
     check("別のスライドにも書ける", st(d)['inkAll'], 2)
     key(d, 'E'); check("Shift+E で、すべてのスライドの書き込みが消える", [st(d)['inkAll'], st(d)['ink']], [0, 0])
-    key(d, 'd'); check("D で書き込みを切る", st(d)['draw'], False)
+    key(d, 'l'); check("L でレーザーポインターを切ると、書き込めなくなる", [st(d)['laser'], st(d)['draw']], [False, False])
     drag(d, SC, 0.2, 0.2, 0.5, 0.5)
-    check("書き込みを切ると、ドラッグしても線は引けない", st(d)['inkAll'], 0)
-    key(d, 'd')
+    check("レーザーポインターが切れていると、ドラッグしても線は引けない", st(d)['inkAll'], 0)
     d.destroy(); dwin.clear()
 
     # --- レーザーの大きさを、発表の画面で選べる
@@ -373,7 +367,7 @@ def drive():
     hint = pres.evaluate_js("document.getElementById('phint').textContent")
     check("発表者ビューに、ポインターのボタンはない（キーで操作する）", pres.evaluate_js("[!!document.getElementById('plaserminus'), !!document.getElementById('plaserplus')]"), [False, False])
     check("発表者ビューに、キー操作のメモが出る（スライド一覧 G・画面の比率 R など）", all(t in hint for t in ("G", "スライド一覧", "R", "画面の比率", "B", "暗転", "?", "操作の一覧", "L", "Z")), True)
-    check("メモでは、L・[ ]・Z がこの順に、続けて並ぶ", [hint.index("レーザー") < hint.index("点の大きさ") < hint.index("部分拡大")], [True])
+    check("メモでは、L・書き込み・Z が、この順に続けて並ぶ", [hint.index("レーザー") < hint.index("書き込み") < hint.index("部分拡大")], [True])
     ls = "(() => { const s = Deck.state(), sc = Math.min(innerWidth / 1280, innerHeight / 720); return [s.lz, s.lpx, sc]; })()"
     lsp = "(() => { const s = Deck.state(), p = document.querySelector('#presenter .cur-pane'), sc = Math.min(p.clientWidth / 1280, p.clientHeight / 720); return [s.lz, s.lpx, sc]; })()"
     a = aud.evaluate_js(ls); p = pres.evaluate_js(lsp)
@@ -392,21 +386,25 @@ def drive():
     key(pres, "["); time.sleep(.8)
     check("使い終わったら、既定の 30 に戻しておく", [aud.evaluate_js("Deck.state().lz"), abs(aud.evaluate_js("Deck.state().lpx") - round(30 * aud.evaluate_js("Math.min(innerWidth / 1280, innerHeight / 720)"))) <= 1], [30, True])
     # --- 書き込み: 発表者ビューで書くと、聴衆の画面にも出る
+    key(pres, 'l'); time.sleep(.7)
+    check("発表者ビューで L を入れると、聴衆の画面でも入る（書き込みは、L を入れているとき）", [st(pres)['laser'], st(aud)['laser']], [True, True])
     drag(pres, '#presenter .cur-pane .inner', 0.3, 0.4, 0.7, 0.6)
     time.sleep(.8)
     check("発表者ビューのドラッグで、聴衆の画面にも線が出る", [st(pres)['ink'], st(aud)['ink']], [1, 1])
     fa = aud.evaluate_js("document.querySelector('#ink polyline').getAttribute('points').split(' ')[0].split(',').map(Number)")
     check("線の位置が、スライド上で同じ（0.3・0.4）", [abs(fa[0] - 0.3 * 1280) < 3, abs(fa[1] - 0.4 * 720) < 3], [True, True])
-    middle(pres, '#presenter .cur-pane .inner'); time.sleep(.5)
-    check("発表者ビューの中ボタンで、ペンの色が変わり、聴衆の画面にも合う", [st(pres)['color'], st(aud)['color']], [1, 1])
+    key(pres, 'c'); time.sleep(.6)
+    check("発表者ビューの C で、ペンの色が変わり、聴衆の画面にも合う", [st(pres)['color'], st(aud)['color']], [1, 1])
     drag(aud, '#scaler', 0.1, 0.1, 0.3, 0.2); time.sleep(.8)
     check("聴衆の画面で書いた線も、発表者ビューに出る（青）", [st(aud)['ink'], st(pres)['ink'], pres.evaluate_js("document.querySelector('#presenter svg.ink').lastElementChild.getAttribute('stroke')")], [2, 2, '#1f6feb'])
     key(pres, 'u'); time.sleep(.8)
     check("発表者ビューの U で、聴衆の画面の線も 1 本戻る", [st(pres)['ink'], st(aud)['ink']], [1, 1])
     key(aud, 'e'); time.sleep(.8)
     check("聴衆の画面の E で、発表者ビューの書き込みも消える", [st(pres)['ink'], st(aud)['ink']], [0, 0])
-    key(pres, 'd'); time.sleep(.8)
-    check("D の入切が、両方の画面にそろう", [st(pres)['draw'], st(aud)['draw']], [False, False]); key(pres, 'd'); time.sleep(.5)
+    key(aud, 'l'); time.sleep(.8)
+    check("聴衆の画面で L を切ると、発表者ビューでも切れて、書き込めなくなる", [st(pres)['laser'], st(aud)['laser'], st(pres)['draw']], [False, False, False])
+    drag(pres, '#presenter .cur-pane .inner', 0.3, 0.3, 0.5, 0.4); time.sleep(.6)
+    check("L が切れていると、発表者ビューでも、ドラッグしても書けない", [st(pres)['ink'], st(aud)['ink']], [0, 0])
     # --- 発表者ビュー: スライドの上のクリックで進める（左: 次、右: 前）
     key(pres, 'c'); key(pres, 'c'); key(pres, 'c'); key(pres, 'c'); time.sleep(.4)
     i0 = st(pres)['i']
@@ -417,9 +415,11 @@ def drive():
     pres.evaluate_js("document.querySelector('#presenter .next-pane .inner').dispatchEvent(new MouseEvent('click', {bubbles: true, button: 0}))"); time.sleep(.8)
     check("「次のスライド」を左クリックしても、次へ進む", [st(pres)['i'], st(aud)['i']], [i0 + 1, i0 + 1])
     pres.evaluate_js("document.getElementById('pprev').click()"); time.sleep(.8)
+    key(pres, 'l'); time.sleep(.6)
     drag(pres, '#presenter .cur-pane .inner', 0.3, 0.3, 0.5, 0.4, click=True)
     check("発表者ビューで書いたあとのクリックでは、進まない（書き込みと区別される）", [st(pres)['i'], st(aud)['i'], st(pres)['ink']], [i0, i0, 1])
     key(pres, 'e'); time.sleep(.6)
+    key(pres, 'l'); time.sleep(.6)
     key(pres, "r"); time.sleep(.8)
     check("発表者ビューで R を押すと、聴衆の画面の比率も変わる（16:10）", [st(pres)["ratio"], st(aud)["ratio"], st(aud)["W"]], ["16:10", "16:10", 1152])
     key(pres, "r"); key(pres, "r"); key(pres, "r"); time.sleep(.8)

@@ -137,7 +137,7 @@
   // 書いたものは、スライドごとに、この発表の間だけ覚える（保存しない）。位置は、スライド上の 0〜1 の比率で持ち、両方の画面で同じに描く
   const PEN_COLORS = [['赤', '#e5302a'], ['青', '#1f6feb'], ['緑', '#1a9850'], ['黄', '#f2c200'], ['黒', '#111111']];
   const PEN_TOOLS = [['pen', 'ペン'], ['marker', 'マーカー（蛍光ペン）'], ['line', '直線'], ['arrow', '矢印']];
-  let drawOn = true, penColor = 0, penTool = 0, marks = {}, byId = {}, strokeSeq = 0, press = null, live = null, suppressClick = false, outbox = [], outTimer = null;
+  let penColor = 0, penTool = 0, marks = {}, byId = {}, strokeSeq = 0, press = null, live = null, suppressClick = false, outbox = [], outTimer = null;
   const penWidth = tool => Math.max(2, laserUnits / 6) * (tool === 'marker' ? 3 : 1);          // スライドの座標での太さ（ポインターの大きさと連動）
   const idPrefix = role === 'presenter' ? 'p' : 'a';
 
@@ -221,9 +221,6 @@
     penTool = (penTool + 1) % PEN_TOOLS.length;
     toast('ペンの種類: ' + PEN_TOOLS[penTool][1] + '（Shift+ドラッグ: 直線、Ctrl+ドラッグ: 矢印）'); send({ pt: penTool });
   }
-  function toggleDraw() {
-    drawOn = !drawOn; toast(drawOn ? '書き込み: 入（ドラッグで線を引く。中ボタン / C: 色、[ ]: 大きさ）' : '書き込み: 切（ドラッグでは書けません）'); send({ dw: drawOn });
-  }
   const undoStroke = () => { const m = { o: 'u', s: idx }; applyMark(m); send({ mk: m }); };
   const clearInk = all => { const m = all ? { o: 'C' } : { o: 'c', s: idx }; applyMark(m); send({ mk: m }); toast(all ? 'すべてのスライドの書き込みを消しました' : 'このスライドの書き込みを消しました'); };
 
@@ -266,8 +263,8 @@
   // ---- 発表者ビュー（手元の画面）
   // 発表者ビューの下に出す、キー操作のメモ（キーは、この画面でも、聴衆の画面でも使える。L・Z は、マウスのある画面で働く）
   const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率　<b>F</b>全画面　<b>?</b>操作の一覧'
-    + '<br><b>L</b>レーザーポインター　<b>[</b><b>]</b>点の大きさ　<b>Z</b>部分拡大　<span class="sub">（L・Z は、手元のスライドの上でマウスを動かすと、聴衆の画面に出ます）</span>'
-    + '<br><b>ドラッグ</b>書き込み（Shift 直線・Ctrl 矢印）　<b>中ボタン/C</b>色　<b>M</b>ペンの種類　<b>D</b>入切　<b>U</b>戻す　<b>E</b>消す';
+    + '<br><b>L</b>レーザーポインター　<b>ドラッグ</b>書き込み（Shift 直線・Ctrl 矢印）　<b>C</b>色　<b>M</b>ペンの種類　<b>U</b>戻す　<b>E</b>消す　<b>[</b><b>]</b>大きさ　<b>Z</b>部分拡大'
+    + '<br><span class="sub">（L・Z は、手元のスライドの上でマウスを動かすと、聴衆の画面に出ます。書き込みは、L を入れているときに使います）</span>';
   function buildPresenter() {
     const p = $('presenter');
     p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="inner"></div></div>'
@@ -351,8 +348,8 @@
 
   // ---- 操作
   const HELP = [['→ ↓ Space Enter', '次のスライド'], ['← ↑ BackSpace', '前のスライド'], ['Home / End', '最初 / 最後'], ['数字 + Enter', 'そのスライドへ'],
-    ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインター'], ['[ / ]', 'ポインター・ペンの大きさ（小さく / 大きく）'],
-    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['中ボタン / C', 'ペンの色'], ['M', 'ペンの種類（ペン・マーカー・直線・矢印）'], ['D', '書き込みの入切'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（ホイールで倍率）'],
+    ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインターの入切（入れている間、ドラッグで書き込める）'],
+    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['C', 'ペンの色'], ['M', 'ペンの種類（ペン・マーカー・直線・矢印）'], ['[ / ]', 'ポインター・ペンの大きさ（小さく / 大きく）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（ホイールで倍率）'],
     ['R', '画面の比率を切り替える'], ['F', '全画面の入切'], ['O', '発表者ビューを開く'], ['P / Shift+P', '印刷 / ノート付きの配布資料'], ['Esc', '閉じる'], ['?', 'この説明']];
   function toggleHelp() {
     const h = $('help'); if (!h.firstChild) h.innerHTML = '<div>' + HELP.map(r => '<div><b>' + r[0] + '</b>' + r[1] + '</div>').join('') + '</div>';
@@ -389,8 +386,9 @@
     else if (k === 'w' || k === 'W' || k === ',') setScreen(black === 'white' ? '' : 'white');
     else if (k === 'l' || k === 'L') {
       laserOn = !laserOn; document.body.classList.toggle('laser', laserOn);
-      toast(laserOn ? (role === 'presenter' ? 'レーザーポインター: 入（「いまのスライド」の上で動かすと、聴衆の画面に出ます。[ ] で大きさを変える）' : 'レーザーポインター: 入（[ ] で大きさを変える）') : 'レーザーポインター: 切');
-      if (role === 'presenter') send({ laser: laserOn, u: null, v: null });
+      toast(laserOn ? (role === 'presenter' ? 'レーザーポインター: 入（「いまのスライド」の上で動かすと、聴衆の画面に出ます。ドラッグで書き込み、[ ] で大きさ）' : 'レーザーポインター: 入（ドラッグで書き込み、[ ] で大きさ）') : 'レーザーポインター: 切（書き込みはできません）');
+      send({ laser: laserOn, u: null, v: null });
+      if (!laserOn && press) { press = null; endStroke(); }
     }
     else if (k === 'z' || k === 'Z') {
       zoomOn = !zoomOn; applyTransform();
@@ -398,7 +396,6 @@
       if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK });
     }
     else if (k === 'r' || k === 'R') setRatio(RATIOS[(RATIOS.findIndex(r => r[0] === ratioKey) + 1) % RATIOS.length][0]);
-    else if (k === 'd' || k === 'D') toggleDraw();
     else if (k === 'm' || k === 'M') cyclePenTool();
     else if (k === 'c' || k === 'C') cyclePenColor();
     else if (k === 'u' || k === 'U') undoStroke();
@@ -422,10 +419,9 @@
       if (s.mk) applyMark(s.mk);
       if (typeof s.pc === 'number' && s.pc >= 0 && s.pc < PEN_COLORS.length) penColor = s.pc;
       if (typeof s.pt === 'number' && s.pt >= 0 && s.pt < PEN_TOOLS.length) penTool = s.pt;
-      if (typeof s.dw === 'boolean') drawOn = s.dw;
+      if (typeof s.laser === 'boolean') { laserOn = s.laser; document.body.classList.toggle('laser', laserOn); }              // レーザー（と書き込み）の入切は、両方の画面で同じ
       if (typeof s.lz === 'number' && role === 'presenter') setLaser(s.lz, true);
       if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
-        if (typeof s.laser === 'boolean') { laserOn = s.laser; document.body.classList.toggle('laser', laserOn); }
         if (typeof s.lz === 'number') setLaser(s.lz, true);
         if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1.5, s.zk));
         if (typeof s.zoom === 'boolean') { zoomOn = s.zoom; applyTransform(); }
@@ -436,7 +432,7 @@
         } else if (typeof s.zk === 'number' && zoomOn) applyTransform();
       }
       if (typeof s.i === 'number') show(s.i, true); },
-    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, draw: drawOn, tool: PEN_TOOLS[penTool][0], color: penColor, ink: (marks[idx] || []).length, inkAll: Object.values(marks).reduce((n, a) => n + a.length, 0), lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
+    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, draw: laserOn, tool: PEN_TOOLS[penTool][0], color: penColor, ink: (marks[idx] || []).length, inkAll: Object.values(marks).reduce((n, a) => n + a.length, 0), lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
     next: next, prev: prev, goto: i => show(i), overflow: overflowList, shrunk: shrunkList, setRatio: setRatio, fitAll: fitAll, print: printDeck,
     preparePrint: preparePrint, endPrint: endPrint,
   };
@@ -465,12 +461,11 @@
     $('stage').addEventListener('click', e => { if (suppressClick) { suppressClick = false; return; } if (e.button === 0 && !overviewOn) next(); });
     $('screen').addEventListener('click', () => setScreen(''));                                          // 暗転は、クリックでも戻る
     $('stage').addEventListener('contextmenu', e => { e.preventDefault(); prev(); });                       // 右クリック = 前のスライド（書き込みの入切に関わらず、従来どおり）
-    // 書き込み: 左ボタンのドラッグ（5px 以上動いたら始まる）。動かさずに離せば、ふつうのクリック（次へ）。中ボタン: ペンの色
+    // 書き込み: レーザーポインター（L）が入っているときだけ。左ボタンのドラッグ（5px 以上動いたら始まる）。動かさずに離せば、ふつうのクリック（次へ）
     const inDrawArea = t => role === 'presenter' ? !!(t.closest && t.closest('#presenter .cur-pane')) : !!(t.closest && t.closest('#stage'));
     document.addEventListener('mousedown', e => {
-      if (!drawOn || overviewOn || $('help').classList.contains('on') || !inDrawArea(e.target)) return;
+      if (!laserOn || overviewOn || $('help').classList.contains('on') || !inDrawArea(e.target)) return;
       if (e.button === 0) press = { x: e.clientX, y: e.clientY, shift: e.shiftKey, ctrl: e.ctrlKey, started: false };
-      else if (e.button === 1) e.preventDefault();                                         // 中ボタンの自動スクロールを止める
     });
     document.addEventListener('mousemove', e => {
       if (!press) return;
@@ -480,7 +475,6 @@
     });
     document.addEventListener('mouseup', e => {
       if (e.button === 0 && press) { if (press.started) { endStroke(); suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); } press = null; }
-      else if (e.button === 1 && drawOn && !overviewOn && inDrawArea(e.target)) { e.preventDefault(); cyclePenColor(); }
     });
 
     if (role === 'presenter') {                                                                        // 手元の画面でも、スライドの上のクリックで進める（左: 次、右: 前）
