@@ -65,6 +65,12 @@ SAMPLE_THEME = """/* 発表のテーマ（自分用）。このファイルを�
 """
 
 
+# 試験用ビルドの見本テーマにあった、表紙の背景の指定の誤り（--slide-bg: var(--slide-accent) と書き、同じ規則の中で --slide-accent も
+# 書き換えていたため、背景が白、文字も白で、表紙が空白に見えた）。そのとき作られたファイルは、読み込むときに直す（ファイルは書き換えない）
+_OLD_SAMPLE_LEAD = ".slide.sd-lead { --slide-bg: var(--slide-accent); --slide-fg: #fff; --slide-accent: #fff; }"
+_NEW_SAMPLE_LEAD = ".slide.sd-lead { --slide-bg: #b4541a; --slide-fg: #fff; --slide-accent: #fff; }"
+
+
 def screens():
     """接続されているモニターの一覧。[{index, width, height, x, y, primary}]。"""
     out = []
@@ -164,7 +170,7 @@ def theme_css(theme_id, doc_path=None, user_dir=None):
             try:
                 if os.path.getsize(path) <= MAX_CSS:
                     with open(path, encoding="utf-8-sig") as f:
-                        return inline_urls(f.read(), os.path.dirname(path))
+                        return inline_urls(f.read().replace(_OLD_SAMPLE_LEAD, _NEW_SAMPLE_LEAD), os.path.dirname(path))
             except (OSError, UnicodeDecodeError):
                 pass
     return BUILTIN["light"][1]

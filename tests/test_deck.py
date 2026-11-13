@@ -289,3 +289,12 @@ def test_見本のテーマの表紙は_背景と文字が同じ色にならな�
     m = re.search(r"\.slide\.sd-lead \{([^}]*)\}", deck.SAMPLE_THEME)
     decl = dict(re.findall(r"(--[a-z-]+)\s*:\s*([^;]+);", m.group(1)))
     assert decl["--slide-bg"].startswith("#") and decl["--slide-bg"].lower() != decl["--slide-fg"].lower()
+
+
+def test_旧い見本のテーマで作られたファイルは_読み込むときに表紙の指定が直る(tmp_path):
+    old = ".slide { --slide-accent: #b4541a; }\n.slide.sd-lead { --slide-bg: var(--slide-accent); --slide-fg: #fff; --slide-accent: #fff; }\n"
+    path = make_theme(str(tmp_path), "旧.css", old)
+    out = deck.theme_css("user:" + path, str(tmp_path / "x.md"))
+    assert "--slide-bg: #b4541a" in out and "--slide-bg: var(--slide-accent)" not in out
+    with open(path, encoding="utf-8") as f:
+        assert f.read() == old                                                  # ファイルは、書き換えない
