@@ -169,19 +169,18 @@
 
   // ---- 発表者ビュー（手元の画面）
   // 発表者ビューの下に出す、キー操作のメモ（キーは、この画面でも、聴衆の画面でも使える。L・Z は、マウスのある画面で働く）
-  const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率（聴衆の画面も切替）　<b>F</b>全画面　<b>?</b>操作の一覧'
-    + '<br><span class="sub"><b>L</b>レーザーポインター・<b>Z</b>部分拡大: 入れたあと、手元の「いまのスライド」の上でマウスを動かすと、聴衆の画面に出ます（ホイールで拡大の倍率）。<b>[</b><b>]</b>ポインターの大きさ</span>';
+  const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率　<b>F</b>全画面　<b>?</b>操作の一覧'
+    + '<br><b>L</b>レーザーポインター　<b>[</b><b>]</b>点の大きさ　<b>Z</b>部分拡大　<span class="sub">（L・Z は、手元のスライドの上でマウスを動かすと、聴衆の画面に出ます）</span>';
   function buildPresenter() {
     const p = $('presenter');
     p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="inner"></div></div>'
       + '<div class="side"><div class="pane next-pane"><span class="label">次のスライド</span><div class="inner"></div></div><div class="notes empty"></div></div>'
       + '<div class="bar"><span class="big" id="pcount"></span><span class="big" id="pelapsed">00:00</span><span id="pclock"></span><span class="grow warnline" id="pwarn"></span>'
-      + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="plaserminus">ポインター −</button><button id="plaserplus">ポインター ＋</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>'
+      + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>'
       + '<div class="hint" id="phint">' + PRESENTER_HINT + '</div>';
     $('pprev').onclick = prev; $('pnext').onclick = next;
     $('pblack').onclick = () => setScreen(black ? '' : 'black');
     $('ptimer').onclick = () => { startTime = Date.now(); tick(); };
-    $('plaserminus').onclick = () => setLaser(-1); $('plaserplus').onclick = () => setLaser(1);
     $('pnoteminus').onclick = () => { noteSize = Math.max(12, noteSize - 2); p.style.setProperty('--note-size', noteSize + 'px'); };
     $('pnoteplus').onclick = () => { noteSize = Math.min(60, noteSize + 2); p.style.setProperty('--note-size', noteSize + 'px'); };
   }

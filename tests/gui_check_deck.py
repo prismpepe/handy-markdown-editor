@@ -281,7 +281,9 @@ def drive():
     check("役割が分かれている", [st(aud)['role'], st(pres)['role']], ['audience', 'presenter'])
     check("発表者ビューでも、表紙は聴衆の画面と同じ配置（中央寄せ）", pres.evaluate_js("[getComputedStyle(document.querySelector('.cur-pane .slide')).display, getComputedStyle(document.querySelector('.cur-pane .slide .md-body')).textAlign]"), ["flex", "center"])
     hint = pres.evaluate_js("document.getElementById('phint').textContent")
+    check("発表者ビューに、ポインターのボタンはない（キーで操作する）", pres.evaluate_js("[!!document.getElementById('plaserminus'), !!document.getElementById('plaserplus')]"), [False, False])
     check("発表者ビューに、キー操作のメモが出る（スライド一覧 G・画面の比率 R など）", all(t in hint for t in ("G", "スライド一覧", "R", "画面の比率", "B", "暗転", "?", "操作の一覧", "L", "Z")), True)
+    check("メモでは、L・[ ]・Z がこの順に、続けて並ぶ", [hint.index("レーザー") < hint.index("点の大きさ") < hint.index("部分拡大")], [True])
     ls = "(() => { const s = Deck.state(), sc = Math.min(innerWidth / 1280, innerHeight / 720); return [s.lz, s.lpx, sc]; })()"
     lsp = "(() => { const s = Deck.state(), p = document.querySelector('#presenter .cur-pane'), sc = Math.min(p.clientWidth / 1280, p.clientHeight / 720); return [s.lz, s.lpx, sc]; })()"
     a = aud.evaluate_js(ls); p = pres.evaluate_js(lsp)
@@ -295,8 +297,8 @@ def drive():
     check("] で点が大きくなり（30 → 40）、発表者ビューにも反映される", [aud.evaluate_js("Deck.state().lz"), pres.evaluate_js("Deck.state().lz")], [40, 40])
     key(pres, "["); key(pres, "["); time.sleep(.8)
     check("発表者ビューで [ を 2 回押すと、小さくなり（24）、聴衆の画面にも反映される", [aud.evaluate_js("Deck.state().lz"), pres.evaluate_js("Deck.state().lz")], [24, 24])
-    pres.evaluate_js("document.getElementById('plaserplus').click()"); pres.evaluate_js("document.getElementById('plaserplus').click()"); time.sleep(.8)
-    check("発表者ビューの「ポインター ＋」でも大きくなる（24 → 30 → 40）", [aud.evaluate_js("Deck.state().lz"), pres.evaluate_js("Deck.state().lz")], [40, 40])
+    key(pres, "]"); key(pres, "]"); time.sleep(.8)
+    check("発表者ビューで ] を 2 回押すと、大きくなる（24 → 30 → 40）", [aud.evaluate_js("Deck.state().lz"), pres.evaluate_js("Deck.state().lz")], [40, 40])
     key(pres, "["); time.sleep(.8)
     check("使い終わったら、既定の 30 に戻しておく", [aud.evaluate_js("Deck.state().lz"), abs(aud.evaluate_js("Deck.state().lpx") - round(30 * aud.evaluate_js("Math.min(innerWidth / 1280, innerHeight / 720)"))) <= 1], [30, True])
     key(pres, "r"); time.sleep(.8)
