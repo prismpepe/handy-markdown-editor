@@ -367,7 +367,7 @@ def drive():
     hint = pres.evaluate_js("document.getElementById('phint').textContent")
     check("発表者ビューに、ポインターのボタンはない（キーで操作する）", pres.evaluate_js("[!!document.getElementById('plaserminus'), !!document.getElementById('plaserplus')]"), [False, False])
     check("発表者ビューに、キー操作のメモが出る（スライド一覧 G・画面の比率 R など）", all(t in hint for t in ("G", "スライド一覧", "R", "画面の比率", "B", "暗転", "?", "操作の一覧", "L", "Z")), True)
-    check("メモでは、L・書き込み・Z が、この順に続けて並ぶ", [hint.index("レーザー") < hint.index("書き込み") < hint.index("部分拡大")], [True])
+    check("メモは、L・大きさ・色・ペンの種類・ドラッグ・戻す・消す・Z の順に並ぶ", [hint.index("レーザー") < hint.index("大きさ") < hint.index("色") < hint.index("ペンの種類") < hint.index("書き込み") < hint.index("戻す") < hint.index("消す") < hint.index("部分拡大")], [True])
     ls = "(() => { const s = Deck.state(), sc = Math.min(innerWidth / 1280, innerHeight / 720); return [s.lz, s.lpx, sc]; })()"
     lsp = "(() => { const s = Deck.state(), p = document.querySelector('#presenter .cur-pane'), sc = Math.min(p.clientWidth / 1280, p.clientHeight / 720); return [s.lz, s.lpx, sc]; })()"
     a = aud.evaluate_js(ls); p = pres.evaluate_js(lsp)
