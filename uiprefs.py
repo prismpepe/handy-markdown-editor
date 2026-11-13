@@ -164,6 +164,9 @@ def clean_deck(value):
     screen = value.get("screen")
     if isinstance(screen, int) and not isinstance(screen, bool) and -1 <= screen <= 16:
         out["screen"] = screen
+    laser = value.get("laser")
+    if isinstance(laser, int) and not isinstance(laser, bool) and 10 <= laser <= 160:
+        out["laser"] = laser
     return out
 
 

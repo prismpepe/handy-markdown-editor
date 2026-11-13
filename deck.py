@@ -224,7 +224,8 @@ class _Bridge:
 
 
 class DeckHost:
-    def __init__(self, resource_path, user_dir_func=None):
+    def __init__(self, resource_path, user_dir_func=None, save_prefs=None):
+        self._save_prefs = save_prefs                     # 発表中に変えた設定（レーザーの大きさ）を覚える関数（patch を受け取る）
         self._resource_path = resource_path
         self._user_dir = user_dir_func or (lambda: None)
         self._windows = {}
@@ -374,6 +375,14 @@ class DeckHost:
                     safe[key] = None
                 elif isinstance(val, (int, float)) and not isinstance(val, bool) and -0.5 <= val <= 1.5:
                     safe[key] = float(val)
+        lz = state.get("lz")
+        if isinstance(lz, (int, float)) and not isinstance(lz, bool):
+            safe["lz"] = min(160.0, max(10.0, float(lz)))
+            if self._save_prefs is not None:
+                try:
+                    self._save_prefs({"deck": {"laser": int(round(safe["lz"]))}})
+                except Exception:
+                    pass
         if isinstance(state.get("t"), (int, float)):
             safe["t"] = state["t"]
         for role, w in list(self._windows.items()):

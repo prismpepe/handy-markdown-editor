@@ -46,7 +46,7 @@ body { font-family: "Yu Gothic UI", "Segoe UI", sans-serif; -webkit-user-select:
 #screen { position: fixed; inset: 0; z-index: 20; display: none; }
 #screen.black { display: block; background: #000; }
 #screen.white { display: block; background: #fff; }
-#laser { position: fixed; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; z-index: 25; pointer-events: none; display: none;
+#laser { position: fixed; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; z-index: 25; pointer-events: none; display: none;
   background: radial-gradient(circle, #ff3030 0 35%, rgba(255, 48, 48, .55) 55%, rgba(255, 48, 48, 0) 72%); }
 body.laser #laser { display: block; }
 body.laser, body.laser #stage, body.idle, body.idle #stage { cursor: none; }

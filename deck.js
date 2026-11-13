@@ -12,6 +12,10 @@
   const slides = [...document.querySelectorAll('#scaler > .slide')];
   let idx = Math.min(Math.max(0, cfg.start | 0), Math.max(0, slides.length - 1));
   let ratioKey = RATIOS.some(r => r[0] === cfg.ratio) ? cfg.ratio : '16:9';
+  // レーザーポインターの大きさは、スライドの大きさに対する比率で決める（スライドの座標での直径。画面が大きいほど、点も大きくなる）
+  const LASER_SIZES = [14, 18, 24, 30, 40, 48, 60, 72, 96];
+  const nearestLaser = n => LASER_SIZES.reduce((b, x) => Math.abs(x - n) < Math.abs(b - n) ? x : b, LASER_SIZES[0]);
+  let laserUnits = Math.min(160, Math.max(10, Number(cfg.laser) || 30));
   let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 2, ptr = { x: 0, y: 0 };
   let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
   const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black, ratio: ratioKey })); };
@@ -41,6 +45,24 @@
   const ratioValue = () => ratioKey === 'auto' ? innerWidth / Math.max(1, innerHeight) : RATIOS.find(r => r[0] === ratioKey)[1];
 
   // ---- 大きさ: スライドは固定の大きさで組み、画面に収まるように拡大・縮小する
+  function applyLaser() {
+    const l = $('laser'); if (!l) return;
+    let s = scale;
+    if (role === 'presenter') { const pane = document.querySelector('#presenter .cur-pane'); if (pane && pane.clientWidth) s = Math.min(pane.clientWidth / W, pane.clientHeight / H); }
+    const px = Math.max(8, Math.round(laserUnits * s));
+    l.style.width = l.style.height = px + 'px';
+    l.style.margin = (-px / 2) + 'px 0 0 ' + (-px / 2) + 'px';
+  }
+  // step: +1 / -1（一覧の次の大きさ）、または、remote のときは、相手の画面から来た大きさそのもの
+  function setLaser(v, remote) {
+    if (remote) laserUnits = Math.min(160, Math.max(10, Number(v) || 30));
+    else {
+      const i = LASER_SIZES.indexOf(nearestLaser(laserUnits));
+      laserUnits = LASER_SIZES[Math.min(LASER_SIZES.length - 1, Math.max(0, i + v))];
+    }
+    applyLaser();
+    if (!remote) { toast('レーザーポインターの大きさ: ' + (LASER_SIZES.indexOf(nearestLaser(laserUnits)) + 1) + ' / ' + LASER_SIZES.length); send({ lz: laserUnits }); }
+  }
   function applyTransform() {
     const vw = innerWidth, vh = innerHeight;
     scale = Math.min(vw / W, vh / H);
@@ -52,6 +74,7 @@
     } else {
       el.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
     }
+    applyLaser();
   }
   function layout() {
     W = Math.round(H * ratioValue());
@@ -147,17 +170,18 @@
   // ---- 発表者ビュー（手元の画面）
   // 発表者ビューの下に出す、キー操作のメモ（キーは、この画面でも、聴衆の画面でも使える。L・Z は、マウスのある画面で働く）
   const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率（聴衆の画面も切替）　<b>F</b>全画面　<b>?</b>操作の一覧'
-    + '<br><span class="sub"><b>L</b>レーザーポインター・<b>Z</b>部分拡大: 入れたあと、手元の「いまのスライド」の上でマウスを動かすと、聴衆の画面に出ます（ホイールで拡大の倍率）</span>';
+    + '<br><span class="sub"><b>L</b>レーザーポインター・<b>Z</b>部分拡大: 入れたあと、手元の「いまのスライド」の上でマウスを動かすと、聴衆の画面に出ます（ホイールで拡大の倍率）。<b>[</b><b>]</b>ポインターの大きさ</span>';
   function buildPresenter() {
     const p = $('presenter');
     p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="inner"></div></div>'
       + '<div class="side"><div class="pane next-pane"><span class="label">次のスライド</span><div class="inner"></div></div><div class="notes empty"></div></div>'
       + '<div class="bar"><span class="big" id="pcount"></span><span class="big" id="pelapsed">00:00</span><span id="pclock"></span><span class="grow warnline" id="pwarn"></span>'
-      + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>'
+      + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="plaserminus">ポインター −</button><button id="plaserplus">ポインター ＋</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>'
       + '<div class="hint" id="phint">' + PRESENTER_HINT + '</div>';
     $('pprev').onclick = prev; $('pnext').onclick = next;
     $('pblack').onclick = () => setScreen(black ? '' : 'black');
     $('ptimer').onclick = () => { startTime = Date.now(); tick(); };
+    $('plaserminus').onclick = () => setLaser(-1); $('plaserplus').onclick = () => setLaser(1);
     $('pnoteminus').onclick = () => { noteSize = Math.max(12, noteSize - 2); p.style.setProperty('--note-size', noteSize + 'px'); };
     $('pnoteplus').onclick = () => { noteSize = Math.min(60, noteSize + 2); p.style.setProperty('--note-size', noteSize + 'px'); };
   }
@@ -176,6 +200,7 @@
     const n = slides[idx] && slides[idx].querySelector('.slide-note');
     const box = p.querySelector('.notes'); box.classList.toggle('empty', !n); box.innerHTML = n ? n.innerHTML : '（ノートはありません）';
     $('pcount').textContent = (idx + 1) + ' / ' + slides.length;
+    applyLaser();
     const o = overflowList(); $('pwarn').textContent = o.length ? '収まらないスライド: ' + o.join('、') : '';
   }
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -229,7 +254,7 @@
 
   // ---- 操作
   const HELP = [['→ ↓ Space Enter', '次のスライド'], ['← ↑ BackSpace', '前のスライド'], ['Home / End', '最初 / 最後'], ['数字 + Enter', 'そのスライドへ'],
-    ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインター'], ['Z', '部分拡大（ホイールで倍率）'],
+    ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインター'], ['[ / ]', 'ポインターの大きさ（小さく / 大きく）'], ['Z', '部分拡大（ホイールで倍率）'],
     ['R', '画面の比率を切り替える'], ['F', '全画面の入切'], ['O', '発表者ビューを開く'], ['P / Shift+P', '印刷 / ノート付きの配布資料'], ['Esc', '閉じる'], ['?', 'この説明']];
   function toggleHelp() {
     const h = $('help'); if (!h.firstChild) h.innerHTML = '<div>' + HELP.map(r => '<div><b>' + r[0] + '</b>' + r[1] + '</div>').join('') + '</div>';
@@ -266,7 +291,7 @@
     else if (k === 'w' || k === 'W' || k === ',') setScreen(black === 'white' ? '' : 'white');
     else if (k === 'l' || k === 'L') {
       laserOn = !laserOn; document.body.classList.toggle('laser', laserOn);
-      toast(laserOn ? (role === 'presenter' ? 'レーザーポインター: 入（「いまのスライド」の上で動かすと、聴衆の画面に出ます）' : 'レーザーポインター: 入') : 'レーザーポインター: 切');
+      toast(laserOn ? (role === 'presenter' ? 'レーザーポインター: 入（「いまのスライド」の上で動かすと、聴衆の画面に出ます。[ ] で大きさを変える）' : 'レーザーポインター: 入（[ ] で大きさを変える）') : 'レーザーポインター: 切');
       if (role === 'presenter') send({ laser: laserOn, u: null, v: null });
     }
     else if (k === 'z' || k === 'Z') {
@@ -275,6 +300,8 @@
       if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK });
     }
     else if (k === 'r' || k === 'R') setRatio(RATIOS[(RATIOS.findIndex(r => r[0] === ratioKey) + 1) % RATIOS.length][0]);
+    else if (k === '[') setLaser(-1);
+    else if (k === ']') setLaser(1);
     else if (k === 'f' || k === 'F') toggleFullscreen();
     else if (k === 'o' || k === 'O') { if (role === 'audience' && window.pywebview && window.pywebview.api && window.pywebview.api.open_presenter) window.pywebview.api.open_presenter(); }
     else if (k === 'p') printDeck(false);
@@ -288,8 +315,10 @@
   // ---- 外から呼ぶもの（アプリの側が、別のウィンドウの状態を合わせる / 試験）
   window.Deck = {
     apply: function (s) { if (!s) return; if (typeof s.black === 'string') setScreen(s.black, true); if (typeof s.ratio === 'string' && s.ratio !== ratioKey && RATIOS.some(r => r[0] === s.ratio)) setRatio(s.ratio, true);
+      if (typeof s.lz === 'number' && role === 'presenter') setLaser(s.lz, true);
       if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
         if (typeof s.laser === 'boolean') { laserOn = s.laser; document.body.classList.toggle('laser', laserOn); }
+        if (typeof s.lz === 'number') setLaser(s.lz, true);
         if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1.5, s.zk));
         if (typeof s.zoom === 'boolean') { zoomOn = s.zoom; applyTransform(); }
         if ('u' in s || 'v' in s) {
@@ -299,7 +328,7 @@
         } else if (typeof s.zk === 'number' && zoomOn) applyTransform();
       }
       if (typeof s.i === 'number') show(s.i, true); },
-    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, overview: overviewOn, role: role, t0: startTime }),
+    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
     next: next, prev: prev, goto: i => show(i), overflow: overflowList, shrunk: shrunkList, setRatio: setRatio, fitAll: fitAll, print: printDeck,
     preparePrint: preparePrint, endPrint: endPrint,
   };

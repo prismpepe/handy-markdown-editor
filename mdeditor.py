@@ -261,7 +261,7 @@ class Api:
         self._picked_templates = set()      # 利用者が「ファイルを選ぶ」で選んだテンプレート（正規化したパス）
         self._doc_dir = None      # いま編集中の文書のフォルダー（Vega-Lite のデータ読み込みの基準）
         self._start_path = start_path
-        self._deck = deck.DeckHost(resource_path, lambda: os.path.dirname(settings_path()))
+        self._deck = deck.DeckHost(resource_path, lambda: os.path.dirname(settings_path()), lambda patch: self.set_prefs(patch))
         self._dirty = False
         self._closing = False
         self._fonts = None
@@ -339,6 +339,9 @@ class Api:
                 settings = load_settings()
                 if layout:
                     settings["prefs"] = {**uiprefs.clean_layout(settings.get("prefs")), **layout}
+                if "deck" in clean:          # 発表の設定は、項目ごとに足す（別の項目を消さない）
+                    old = settings.get("deck") if isinstance(settings.get("deck"), dict) else {}
+                    clean = {**clean, "deck": {**uiprefs.clean_deck(old), **clean["deck"]}}
                 settings.update(clean)
                 save_settings(settings)
             if "safety" in clean:        # 退避の数を減らしたら、すぐに古いものを片づける

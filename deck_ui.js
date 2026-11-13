@@ -77,7 +77,7 @@ async function buildDeckHtml(opts) {
     + assets.css + '\n' + collectExportCss() + '\n' + katexCss + '\n/* テーマ */\n' + themeCss + '\n</style>\n</head>\n<body>\n'
     + '<div id="stage"><div id="scaler">\n' + body + '\n</div></div>\n'
     + '<div id="hud"><i id="hudbar"></i></div><div id="toast"></div><div id="screen"></div><div id="laser"></div><div id="help"></div><div id="overview"></div><div id="presenter"></div><div id="printroot"></div>\n'
-    + '<script>window.DECK = {role: "__DECK_ROLE__", t0: "__DECK_T0__", ratio: ' + deckJson(opts.ratio) + ', start: ' + start + ', title: ' + deckJson(title) + '};<\/script>\n'
+    + '<script>window.DECK = {role: "__DECK_ROLE__", t0: "__DECK_T0__", ratio: ' + deckJson(opts.ratio) + ', laser: ' + (parseInt(opts.laser, 10) || 30) + ', start: ' + start + ', title: ' + deckJson(title) + '};<\/script>\n'
     + '<script>\n' + assets.js.replace(/<\/script/gi, '<\\/script') + '\n<\/script>\n</body>\n</html>\n';
   return { html, warnings, count: slides.length, start };
 }
@@ -115,6 +115,10 @@ function deckForm(info, prefs, canCursor) {
   row('画面の比率', sel('dkRatio', [['16:9', '16:9（フル HD など）'], ['16:10', '16:10'], ['4:3', '4:3（古いプロジェクター）'], ['auto', '画面に合わせる']], prefs.ratio || '16:9'));
   const startOpts = [['top', '最初のスライドから']]; if (canCursor) startOpts.push(['cursor', '編集中の位置のスライドから']);
   row('開始', sel('dkStart', startOpts, 'top'));
+  const lsOpts = [['18', '小'], ['30', '中'], ['48', '大'], ['72', '特大']];
+  const lsVal = Number.isInteger(prefs.laser) ? prefs.laser : 30;
+  if (!lsOpts.some(o => o[0] === String(lsVal))) lsOpts.push([String(lsVal), '前回の大きさ']);
+  row('レーザーポインターの大きさ', sel('dkLaser', lsOpts, lsVal));
   const lab = document.createElement('label'); lab.style.cssText = 'grid-column:1 / 3;display:flex;gap:8px;align-items:center';
   const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'dkPresenter';
   cb.checked = typeof prefs.presenter === 'boolean' ? prefs.presenter : screens.length >= 2;
@@ -161,10 +165,10 @@ async function startPresentation() {
         [{ label: '発表を始める', primary: true }, { label: '保存（PDF・HTML）…' }, { label: 'テーマの見本を作る' }, { label: 'キャンセル' }], form);
       const val = id => document.getElementById(id) ? document.getElementById(id).value : '';
       const opts = { theme: val('dkTheme') || 'light', ratio: val('dkRatio') || '16:9', fromCursor: val('dkStart') === 'cursor',
-        screen: parseInt(val('dkScreen'), 10), presenter: !!(document.getElementById('dkPresenter') || {}).checked, assets: info.assets, title: deckTitle() };
+        screen: parseInt(val('dkScreen'), 10), presenter: !!(document.getElementById('dkPresenter') || {}).checked, assets: info.assets, title: deckTitle(), laser: parseInt(val('dkLaser'), 10) || 30 };
       if (i === 3 || i < 0) return;
       // 選んだ内容は、次回の初期値にする
-      api.set_prefs({ deck: { theme: opts.theme, ratio: opts.ratio, presenter: opts.presenter, screen: Number.isInteger(opts.screen) ? opts.screen : -1 } });
+      api.set_prefs({ deck: { theme: opts.theme, ratio: opts.ratio, presenter: opts.presenter, screen: Number.isInteger(opts.screen) ? opts.screen : -1, laser: opts.laser } });
       if (i === 2) {
         const r = await api.deck_make_theme(DECK_HOST.docPath());
         if (r.error) DECK_HOST.say(r.error);

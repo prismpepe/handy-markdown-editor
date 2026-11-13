@@ -320,3 +320,33 @@ def test_レーザーと拡大の状態を受け渡す_範囲を超える値は�
     h._windows["audience"].calls.clear()
     h._relay("presenter", json.dumps({"laser": "yes", "zoom": 1, "zk": True, "u": 99, "v": "x"}))
     assert h._windows["audience"].calls[0] == "window.Deck && window.Deck.apply({})"
+
+
+def test_レーザーの大きさの設定の検査():
+    import uiprefs
+    assert uiprefs.clean_prefs({"deck": {"laser": 48}}) == {"deck": {"laser": 48}}
+    for bad in (5, 500, True, "30", 3.5):
+        assert uiprefs.clean_prefs({"deck": {"laser": bad}}) == {}
+
+
+def test_レーザーの大きさは_受け渡し_範囲に丸め_設定に覚える():
+    saved = []
+    h = deck.DeckHost(lambda n: n, None, saved.append)
+    h._windows = {"audience": FakeWindow(), "presenter": FakeWindow()}
+    h._relay("presenter", json.dumps({"lz": 48}))
+    assert '"lz": 48.0' in h._windows["audience"].calls[0] and saved == [{"deck": {"laser": 48}}]
+    h._windows["audience"].calls.clear()
+    h._relay("presenter", json.dumps({"lz": 1000}))
+    assert '"lz": 160.0' in h._windows["audience"].calls[0] and saved[-1] == {"deck": {"laser": 160}}
+    n = len(saved)
+    h._relay("presenter", json.dumps({"lz": "大"}))
+    h._relay("presenter", json.dumps({"lz": True}))
+    assert len(saved) == n
+
+
+def test_発表の設定は_項目ごとに足される_別の項目を消さない(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    api = app.Api(None)
+    api.set_prefs({"deck": {"theme": "dark", "ratio": "4:3"}})
+    api.set_prefs({"deck": {"laser": 48}})
+    assert api.get_prefs()["deck"] == {"theme": "dark", "ratio": "4:3", "laser": 48}
