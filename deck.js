@@ -14,7 +14,25 @@
   let ratioKey = RATIOS.some(r => r[0] === cfg.ratio) ? cfg.ratio : '16:9';
   let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 2, ptr = { x: 0, y: 0 };
   let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
-  const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black })); };
+  const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black, ratio: ratioKey })); };
+
+  // 一部の項目だけを、もう片方のウィンドウへ送る（レーザーの位置など）
+  const send = obj => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify(obj)); };
+  // スライド上の位置（0〜1）を、窓の座標（px）にする。聴衆の画面で、レーザーや拡大の位置に使う
+  function slideToViewport(u, v) {
+    const vw = innerWidth, vh = innerHeight, sc = Math.min(vw / W, vh / H);
+    return { x: (vw - W * sc) / 2 + u * W * sc, y: (vh - H * sc) / 2 + v * H * sc };
+  }
+  let lastPtrSend = 0;
+  // 発表者ビューで、「いまのスライド」の上のマウスの位置を、聴衆の画面へ送る（レーザー・部分拡大が入っているとき）
+  function pointerToAudience(e) {
+    const now = Date.now(); if (now - lastPtrSend < 40) return; lastPtrSend = now;
+    const inner = document.querySelector('#presenter .cur-pane .inner'); if (!inner) return;
+    const r = inner.getBoundingClientRect();
+    let u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+    if (!(u >= 0 && u <= 1 && v >= 0 && v <= 1)) { u = null; v = null; }                  // スライドの外では、聴衆の画面の点を消す
+    send({ u: u, v: v });
+  }
 
   function toast(text) {
     const t = $('toast'); t.textContent = text; t.classList.add('on');
@@ -127,12 +145,16 @@
   }
 
   // ---- 発表者ビュー（手元の画面）
+  // 発表者ビューの下に出す、キー操作のメモ（キーは、この画面でも、聴衆の画面でも使える。L・Z は、マウスのある画面で働く）
+  const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率（聴衆の画面も切替）　<b>F</b>全画面　<b>?</b>操作の一覧'
+    + '<br><span class="sub"><b>L</b>レーザーポインター・<b>Z</b>部分拡大: 入れたあと、手元の「いまのスライド」の上でマウスを動かすと、聴衆の画面に出ます（ホイールで拡大の倍率）</span>';
   function buildPresenter() {
     const p = $('presenter');
     p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="inner"></div></div>'
       + '<div class="side"><div class="pane next-pane"><span class="label">次のスライド</span><div class="inner"></div></div><div class="notes empty"></div></div>'
       + '<div class="bar"><span class="big" id="pcount"></span><span class="big" id="pelapsed">00:00</span><span id="pclock"></span><span class="grow warnline" id="pwarn"></span>'
-      + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>';
+      + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>'
+      + '<div class="hint" id="phint">' + PRESENTER_HINT + '</div>';
     $('pprev').onclick = prev; $('pnext').onclick = next;
     $('pblack').onclick = () => setScreen(black ? '' : 'black');
     $('ptimer').onclick = () => { startTime = Date.now(); tick(); };
@@ -218,8 +240,8 @@
     else if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_fullscreen) window.pywebview.api.toggle_fullscreen();
   }
   function closeAll() { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.close_all) window.pywebview.api.close_all(); }
-  function setRatio(key) {
-    ratioKey = key; layout(); fitAll(); toast('画面の比率: ' + RATIO_NAME[key] + (key === 'auto' ? '' : '（' + W + '×' + H + '）'));
+  function setRatio(key, remote) {
+    ratioKey = key; layout(); fitAll(); if (!remote) sync(); toast('画面の比率: ' + RATIO_NAME[key] + (key === 'auto' ? '' : '（' + W + '×' + H + '）'));
   }
   function onKey(e) {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -242,8 +264,16 @@
     else if (k === 'g' || k === 'G' || k === 'Tab') openOverview();
     else if (k === 'b' || k === 'B' || k === '.') setScreen(black === 'black' ? '' : 'black');
     else if (k === 'w' || k === 'W' || k === ',') setScreen(black === 'white' ? '' : 'white');
-    else if (k === 'l' || k === 'L') { laserOn = !laserOn; document.body.classList.toggle('laser', laserOn); toast(laserOn ? 'レーザーポインター: 入' : 'レーザーポインター: 切'); }
-    else if (k === 'z' || k === 'Z') { zoomOn = !zoomOn; applyTransform(); toast(zoomOn ? '部分拡大: 入（ホイールで倍率）' : '部分拡大: 切'); }
+    else if (k === 'l' || k === 'L') {
+      laserOn = !laserOn; document.body.classList.toggle('laser', laserOn);
+      toast(laserOn ? (role === 'presenter' ? 'レーザーポインター: 入（「いまのスライド」の上で動かすと、聴衆の画面に出ます）' : 'レーザーポインター: 入') : 'レーザーポインター: 切');
+      if (role === 'presenter') send({ laser: laserOn, u: null, v: null });
+    }
+    else if (k === 'z' || k === 'Z') {
+      zoomOn = !zoomOn; applyTransform();
+      toast(zoomOn ? (role === 'presenter' ? '部分拡大: 入（「いまのスライド」の上で動かすと、聴衆の画面が拡大されます。ホイールで倍率）' : '部分拡大: 入（ホイールで倍率）') : '部分拡大: 切');
+      if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK });
+    }
     else if (k === 'r' || k === 'R') setRatio(RATIOS[(RATIOS.findIndex(r => r[0] === ratioKey) + 1) % RATIOS.length][0]);
     else if (k === 'f' || k === 'F') toggleFullscreen();
     else if (k === 'o' || k === 'O') { if (role === 'audience' && window.pywebview && window.pywebview.api && window.pywebview.api.open_presenter) window.pywebview.api.open_presenter(); }
@@ -257,8 +287,19 @@
 
   // ---- 外から呼ぶもの（アプリの側が、別のウィンドウの状態を合わせる / 試験）
   window.Deck = {
-    apply: function (s) { if (!s) return; if (typeof s.black === 'string') setScreen(s.black, true); if (typeof s.i === 'number') show(s.i, true); },
-    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, overview: overviewOn, role: role, t0: startTime }),
+    apply: function (s) { if (!s) return; if (typeof s.black === 'string') setScreen(s.black, true); if (typeof s.ratio === 'string' && s.ratio !== ratioKey && RATIOS.some(r => r[0] === s.ratio)) setRatio(s.ratio, true);
+      if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
+        if (typeof s.laser === 'boolean') { laserOn = s.laser; document.body.classList.toggle('laser', laserOn); }
+        if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1.5, s.zk));
+        if (typeof s.zoom === 'boolean') { zoomOn = s.zoom; applyTransform(); }
+        if ('u' in s || 'v' in s) {
+          const l = $('laser');
+          if (typeof s.u !== 'number' || typeof s.v !== 'number') l.style.visibility = 'hidden';
+          else { const p = slideToViewport(s.u, s.v); ptr = p; l.style.left = p.x + 'px'; l.style.top = p.y + 'px'; l.style.visibility = ''; if (zoomOn) applyTransform(); }
+        } else if (typeof s.zk === 'number' && zoomOn) applyTransform();
+      }
+      if (typeof s.i === 'number') show(s.i, true); },
+    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, overview: overviewOn, role: role, t0: startTime }),
     next: next, prev: prev, goto: i => show(i), overflow: overflowList, shrunk: shrunkList, setRatio: setRatio, fitAll: fitAll, print: printDeck,
     preparePrint: preparePrint, endPrint: endPrint,
   };
@@ -279,7 +320,9 @@
     document.addEventListener('mousemove', e => {
       ptr = { x: e.clientX, y: e.clientY };
       const l = $('laser'); l.style.left = e.clientX + 'px'; l.style.top = e.clientY + 'px';
+      if (role !== 'presenter') l.style.visibility = '';                                   // 手元から消された点も、この画面のマウスが動けば、また出る
       if (zoomOn) applyTransform();
+      if (role === 'presenter' && (laserOn || zoomOn)) pointerToAudience(e);
       document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
     });
     $('stage').addEventListener('click', e => { if (e.button === 0 && !overviewOn) next(); });
@@ -288,7 +331,7 @@
     document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a'); if (a) e.preventDefault(); }, true);     // 発表中は、リンクを開かない（ウィンドウが別のページに変わらないように）
     document.addEventListener('wheel', e => {
       if (overviewOn) return;
-      if (zoomOn) { zoomK = Math.min(5, Math.max(1.5, zoomK + (e.deltaY < 0 ? 0.25 : -0.25))); applyTransform(); toast('拡大 ' + zoomK.toFixed(2) + ' 倍'); e.preventDefault(); return; }
+      if (zoomOn) { zoomK = Math.min(5, Math.max(1.5, zoomK + (e.deltaY < 0 ? 0.25 : -0.25))); applyTransform(); toast('拡大 ' + zoomK.toFixed(2) + ' 倍'); if (role === 'presenter') send({ zk: zoomK }); e.preventDefault(); return; }
       const now = Date.now(); if (now - lastWheel < 350) return; lastWheel = now;
       if (e.deltaY > 0) next(); else if (e.deltaY < 0) prev();
     }, { passive: false });

@@ -359,6 +359,21 @@ class DeckHost:
             safe["i"] = state["i"]
         if state.get("black") in ("", "black", "white"):
             safe["black"] = state["black"]
+        if state.get("ratio") in ("16:9", "16:10", "4:3", "auto"):
+            safe["ratio"] = state["ratio"]
+        for key in ("laser", "zoom"):
+            if isinstance(state.get(key), bool):
+                safe[key] = state[key]
+        zk = state.get("zk")
+        if isinstance(zk, (int, float)) and not isinstance(zk, bool):
+            safe["zk"] = min(5.0, max(1.5, float(zk)))
+        for key in ("u", "v"):                                         # レーザー・拡大の位置（スライド上の 0〜1。スライドの外は null）
+            if key in state:
+                val = state[key]
+                if val is None:
+                    safe[key] = None
+                elif isinstance(val, (int, float)) and not isinstance(val, bool) and -0.5 <= val <= 1.5:
+                    safe[key] = float(val)
         if isinstance(state.get("t"), (int, float)):
             safe["t"] = state["t"]
         for role, w in list(self._windows.items()):

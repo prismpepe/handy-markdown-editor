@@ -298,3 +298,25 @@ def test_旧い見本のテーマで作られたファイルは_読み込むと�
     assert "--slide-bg: #b4541a" in out and "--slide-bg: var(--slide-accent)" not in out
     with open(path, encoding="utf-8") as f:
         assert f.read() == old                                                  # ファイルは、書き換えない
+
+
+def test_画面の比率も受け渡す_決まった値だけ():
+    h = host_with(["audience", "presenter"])
+    h._relay("presenter", json.dumps({"i": 0, "ratio": "4:3"}))
+    assert '"ratio": "4:3"' in h._windows["audience"].calls[0]
+    h._windows["audience"].calls.clear()
+    h._relay("presenter", json.dumps({"i": 0, "ratio": "99:1"}))
+    assert "ratio" not in h._windows["audience"].calls[0]
+
+
+def test_レーザーと拡大の状態を受け渡す_範囲を超える値は丸める_変な値は捨てる():
+    h = host_with(["audience", "presenter"])
+    h._relay("presenter", json.dumps({"laser": True, "zoom": True, "zk": 9, "u": 0.5, "v": 0.25}))
+    call = h._windows["audience"].calls[0]
+    assert '"laser": true' in call and '"zoom": true' in call and '"zk": 5.0' in call and '"u": 0.5' in call and '"v": 0.25' in call
+    h._windows["audience"].calls.clear()
+    h._relay("presenter", json.dumps({"u": None, "v": None}))
+    assert '"u": null' in h._windows["audience"].calls[0] and '"v": null' in h._windows["audience"].calls[0]
+    h._windows["audience"].calls.clear()
+    h._relay("presenter", json.dumps({"laser": "yes", "zoom": 1, "zk": True, "u": 99, "v": "x"}))
+    assert h._windows["audience"].calls[0] == "window.Deck && window.Deck.apply({})"
