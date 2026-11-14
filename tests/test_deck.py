@@ -221,6 +221,25 @@ def test_片方を閉じると_もう片方も閉じる():
     assert other.destroyed and h._windows == {}
 
 
+def test_遅れて届いた閉じた通知は_いまの窓を巻き込まない():
+    h = host_with(["audience", "presenter"])
+    old_aud = h._windows["audience"]
+    new_aud, new_pres = FakeWindow(), FakeWindow()
+    h._windows = {"audience": new_aud, "presenter": new_pres}       # 片づけて、開き直した状態
+    h._on_closed("audience", old_aud)                               # 古い窓の通知が、あとから届く
+    assert not new_aud.destroyed and not new_pres.destroyed and len(h._windows) == 2
+    h._on_closed("audience", new_aud)                               # いまの窓が閉じられたなら、もう片方も閉じる
+    assert new_pres.destroyed and h._windows == {}
+
+
+def test_発表中は_もう1つ開かない():
+    h = host_with(["audience", "presenter"])
+    before = dict(h._windows)
+    r = h.open('"__DECK_ROLE__"', {})
+    assert r["error"] and h._windows == before and h.running()
+    assert not host_with([]).running()
+
+
 def test_すべて閉じる():
     h = host_with(["audience", "presenter"])
     ws = list(h._windows.values())

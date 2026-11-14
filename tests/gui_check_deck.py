@@ -362,6 +362,8 @@ def drive():
     ws = api._deck._windows
     ok1 = wait("!!(window.Deck && window.Deck.state)", 25, ws['audience']) and wait("!!(window.Deck && window.Deck.state)", 25, ws['presenter'])
     check("2 つとも動き出す", ok1, True)
+    r2 = api.deck_open(html, {'screen': 0, 'presenter': True, 'fullscreen': False, 'title': '試験'})
+    check("発表中にもう一度開こうとしても、断られ、画面は増えない（聴衆の画面が複数にならない）", [bool(r2['error']), api.deck_running(), list(api._deck._windows) == ['audience', 'presenter'], api._deck._windows['audience'] is ws['audience']], [True, True, True, True])
     aud, pres = ws['audience'], ws['presenter']
     aud.move(20, 20); aud.resize(900, 520); pres.move(960, 20); pres.resize(1000, 700); time.sleep(1)
     check("役割が分かれている", [st(aud)['role'], st(pres)['role']], ['audience', 'presenter'])

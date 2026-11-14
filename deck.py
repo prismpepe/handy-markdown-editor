@@ -310,7 +310,7 @@ class DeckHost:
             kw.update(width=1180, height=760, min_size=(720, 480))
         w = webview.create_window(title, **kw)
         try:
-            w.events.closed += lambda: self._on_closed(role)
+            w.events.closed += lambda: self._on_closed(role, w)
         except Exception:
             pass
         self._windows[role] = w
@@ -321,7 +321,8 @@ class DeckHost:
         if not (isinstance(html, str) and '"__DECK_ROLE__"' in html and isinstance(opts, dict)):
             return {"error": "発表の内容が正しくありません"}
         with self._lock:
-            self.close()
+            if self.running():           # 発表中は、もう 1 つ開かない（聴衆の画面が複数になり、閉じられなくなる）。いまの窓を前に出す
+                return {"error": "発表は、すでに始まっています。終えてから（Esc で閉じてから）、もう一度押してください"}
             self._html = html
             self._opts = dict(opts)
             self._t0 = int(time.time() * 1000)
@@ -436,8 +437,22 @@ class DeckHost:
                 except Exception:
                     pass
 
-    def _on_closed(self, role):
+    def running(self):
+        """発表中か。発表中なら、開いている画面を前に出す。"""
         with self._lock:
+            ws = list(self._windows.values())
+        for w in ws:
+            try:
+                w.restore()
+                w.show()
+            except Exception:
+                pass
+        return bool(ws)
+
+    def _on_closed(self, role, win=None):
+        with self._lock:
+            if win is not None and self._windows.get(role) is not win:
+                return                   # すでに片づけた窓の、遅れて届いた通知。いまの窓を巻き込まない
             self._windows.pop(role, None)
             others = list(self._windows.values())
             self._windows.clear()

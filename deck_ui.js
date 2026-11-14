@@ -150,6 +150,7 @@ function deckMeasureText(m) {
 async function startPresentation() {
   if (deckState.busy) return;
   if (!DECK_HOST.hasDocument()) { DECK_HOST.say('先に、文書を開いてください'); return; }
+  if (await api.deck_running()) { DECK_HOST.say('発表は、すでに始まっています（開いている画面を前に出しました）。終えてから、もう一度押してください'); return; }
   deckState.busy = true;
   try {
     for (;;) {

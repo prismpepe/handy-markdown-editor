@@ -322,6 +322,9 @@ class Api:
     def deck_export_pdf(self, html, mode, path):
         return self._deck.export_pdf(html, mode, path)
 
+    def deck_running(self):
+        return self._deck.running()
+
     def deck_close(self):
         self._deck.close()
 
@@ -1316,6 +1319,7 @@ def main():
     window.events.loaded += api._keeper.on_loaded
     window.events.loaded += lambda: _install_drop(window)
     window.events.closing += api.on_closing
+    window.events.closed += lambda: api._deck.close()          # 本体を終えたとき、発表の画面だけが残らないように
     webview.start()
 
 
