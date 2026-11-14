@@ -459,12 +459,17 @@ def drive():
     pres.evaluate_js("document.querySelector('#presenter .cur-pane .inner').click()"); time.sleep(.3)
     pres.evaluate_js(mv % ("0.9", "0.9")); time.sleep(.6)
     check("もう一度クリックして解除すると、また動く", [aud.evaluate_js("Deck.state().zh"), aud.evaluate_js("document.getElementById('scaler').style.transform") != t1], [False, True])
+    key(pres, "l"); time.sleep(.6)
     rp = "(() => { const r = document.querySelector('#presenter .cur-pane .inner').getBoundingClientRect(); const f = (n, x, y) => (n === 'mousemove' || n === 'mouseup' ? document : document.querySelector('#presenter .cur-pane .inner')).dispatchEvent(new MouseEvent(n, {clientX: r.left + r.width * x, clientY: r.top + r.height * y, button: 0, buttons: n === 'mouseup' ? 0 : 1, bubbles: true})); f('mousedown', %s, %s); f('mousemove', %s, %s); f('mouseup', %s, %s); })()"
     pres.evaluate_js(rp % (0.25, 0.25, 0.5, 0.45, 0.5, 0.45)); time.sleep(.8)
     zs = [aud.evaluate_js("Deck.state().zk"), aud.evaluate_js("Deck.state().zh"), st(aud)['i'] == st(pres)['i']]
     check("拡大中にドラッグすると、その範囲が拡大され（4 倍前後）、位置は固定になる", [3 < zs[0] <= 5, zs[1], zs[2]], [True, True, True])
     ct = aud.evaluate_js("(() => { const s = document.getElementById('scaler').getBoundingClientRect(), v = [innerWidth / 2, innerHeight / 2]; return [(v[0] - s.left) / s.width, (v[1] - s.top) / s.height]; })()")
     check("拡大した範囲の中心が、窓の中心にくる（スライドの 0.375・0.35 付近）", [abs(ct[0] - 0.375) < 0.03, abs(ct[1] - 0.35) < 0.03], [True, True])
+    key(pres, "l"); time.sleep(.6)
+    zk0, ink0 = aud.evaluate_js("Deck.state().zk"), st(pres)['inkAll']
+    pres.evaluate_js(rp % (0.1, 0.1, 0.3, 0.3, 0.3, 0.3)); time.sleep(.8)
+    check("L が入っていれば、Z を入れていても、ドラッグは書き込みになる（拡大の倍率は変わらない）", [st(pres)['inkAll'] > ink0, aud.evaluate_js("Deck.state().zk") == zk0], [True, True])
     key(pres, "z"); key(pres, "l"); time.sleep(.8)
     check("もう一度 Z・L で、聴衆の画面の拡大とレーザーが切れる", [st(aud)["zoom"], st(aud)["laser"], st(pres)["laser"]], [False, False, False])
     check("発表者ビューは、ノートと次のスライドを出す",

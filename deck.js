@@ -293,8 +293,8 @@
   // 発表者ビューの下に出す、キー操作のメモ（キーは、この画面でも、聴衆の画面でも使える。L・Z は、マウスのある画面で働く）
   const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率　<b>F</b>全画面　<b>?</b>操作の一覧'
     + '<br><b>L</b>レーザーポインター　<b>[</b><b>]</b>大きさ　<b>C</b>色　<b>M</b>ペンの種類　<b>ドラッグ</b>書き込み（Shift 直線・Ctrl 矢印）　<b>U</b>戻す　<b>E</b>消す'
-    + '<br><b>Z</b>部分拡大　<b>ドラッグ</b>囲んだ範囲を拡大　<b>ホイール</b>倍率　<b>Shift+ホイール</b>動く速さ　<b>クリック</b>位置を固定・解除'
-    + '<br><span class="sub">L・Z は、手元のスライド上で動かすと聴衆の画面に出る　／　書き込みは L だけ（Z の間はドラッグ＝範囲の拡大）</span>';
+    + '<br><b>Z</b>部分拡大　<b>ドラッグ</b>囲んだ範囲を拡大（L が切れているとき）　<b>ホイール</b>倍率　<b>Shift+ホイール</b>動く速さ　<b>クリック</b>位置を固定・解除'
+    + '<br><span class="sub">L が入っていれば、Z との順序に関係なく、ドラッグは書き込み</span>';
   function buildPresenter() {
     const p = $('presenter');
     p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="inner"></div></div>'
@@ -379,7 +379,7 @@
   // ---- 操作
   const HELP = [['→ ↓ Space Enter', '次のスライド'], ['← ↑ BackSpace', '前のスライド'], ['Home / End', '最初 / 最後'], ['数字 + Enter', 'そのスライドへ'],
     ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインターの入切（入れている間、ドラッグで書き込める）'], ['[ / ]', 'ポインター・ペンの大きさ（小さく / 大きく）'], ['C', 'ペンの色'], ['M', 'ペンの種類（ペン・マーカー・直線・矢印）'],
-    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（ドラッグした範囲を拡大。ホイールで倍率 1.1〜5 倍。Shift+ホイールで動く速さ。クリックで位置を固定／解除）'],
+    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（L が切れているとき、ドラッグした範囲を拡大。ホイールで倍率 1.1〜5 倍。Shift+ホイールで動く速さ。クリックで位置を固定／解除）'],
     ['R', '画面の比率を切り替える'], ['F', '全画面の入切'], ['O', '発表者ビューを開く'], ['P / Shift+P', '印刷 / ノート付きの配布資料'], ['Esc', '閉じる'], ['?', 'この説明']];
   function toggleHelp() {
     const h = $('help'); if (!h.firstChild) h.innerHTML = '<div>' + HELP.map(r => '<div><b>' + r[0] + '</b>' + r[1] + '</div>').join('') + '</div>';
@@ -497,13 +497,13 @@
     // 書き込み: レーザーポインター（L）が入っているときだけ。左ボタンのドラッグ（5px 以上動いたら始まる）。動かさずに離せば、ふつうのクリック（次へ）
     const inDrawArea = t => role === 'presenter' ? !!(t.closest && t.closest('#presenter .cur-pane')) : !!(t.closest && t.closest('#stage'));
     document.addEventListener('mousedown', e => {
-      if (zoomOn && e.button === 0 && !overviewOn && !$('help').classList.contains('on') && inDrawArea(e.target)) {
+      if (zoomOn && !laserOn && e.button === 0 && !overviewOn && !$('help').classList.contains('on') && inDrawArea(e.target)) {
         zsel = { x: e.clientX, y: e.clientY, started: false, prevHold: zoomHold };
         zoomHold = true;                                                // 選んでいる間は、拡大の位置を動かさない
         if (role === 'presenter') send({ zh: true });
         return;
       }
-      if (zoomOn || !laserOn || overviewOn || $('help').classList.contains('on') || !inDrawArea(e.target)) return;
+      if (!laserOn || overviewOn || $('help').classList.contains('on') || !inDrawArea(e.target)) return;
       if (e.button === 0) press = { x: e.clientX, y: e.clientY, shift: e.shiftKey, ctrl: e.ctrlKey, started: false };
     });
     document.addEventListener('mousemove', e => {
