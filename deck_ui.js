@@ -147,10 +147,27 @@ function deckMeasureText(m) {
   return out;
 }
 
+// 発表中は、「発表」ボタンを押せなくする（聴衆の画面がもう 1 つ開くのを防ぐ）。発表を終えれば、また押せる
+let deckWatchBusy = false;
+async function deckWatchNow() {
+  if (deckWatchBusy) return;
+  deckWatchBusy = true;
+  try {
+    const on = await api.deck_running();
+    const b = document.getElementById('bDeck');
+    if (b && b.disabled !== !!on) {
+      b.disabled = !!on;
+      if (on) { b.dataset.title = b.title; b.title = '発表中です。発表の画面を閉じる（Esc）と、また押せます'; }
+      else if (b.dataset.title) b.title = b.dataset.title;
+    }
+  } catch (e) { /* 画面が閉じるときなど */ } finally { deckWatchBusy = false; }
+}
+setInterval(deckWatchNow, 800);
+
 async function startPresentation() {
   if (deckState.busy) return;
   if (!DECK_HOST.hasDocument()) { DECK_HOST.say('先に、文書を開いてください'); return; }
-  if (await api.deck_running()) { DECK_HOST.say('発表は、すでに始まっています（開いている画面を前に出しました）。終えてから、もう一度押してください'); return; }
+  if (await api.deck_running()) { deckWatchNow(); DECK_HOST.say('発表は、すでに始まっています（開いている画面を前に出しました）。終えてから、もう一度押してください'); return; }
   deckState.busy = true;
   try {
     for (;;) {

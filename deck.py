@@ -321,7 +321,7 @@ class DeckHost:
         if not (isinstance(html, str) and '"__DECK_ROLE__"' in html and isinstance(opts, dict)):
             return {"error": "発表の内容が正しくありません"}
         with self._lock:
-            if self.running():           # 発表中は、もう 1 つ開かない（聴衆の画面が複数になり、閉じられなくなる）。いまの窓を前に出す
+            if self.running(True):       # 発表中は、もう 1 つ開かない（聴衆の画面が複数になり、閉じられなくなる）。いまの窓を前に出す
                 return {"error": "発表は、すでに始まっています。終えてから（Esc で閉じてから）、もう一度押してください"}
             self._html = html
             self._opts = dict(opts)
@@ -400,12 +400,18 @@ class DeckHost:
             safe["black"] = state["black"]
         if state.get("ratio") in ("16:9", "16:10", "4:3", "auto"):
             safe["ratio"] = state["ratio"]
-        for key in ("laser", "zoom"):
+        for key in ("laser", "zoom", "zh"):
             if isinstance(state.get(key), bool):
                 safe[key] = state[key]
         zk = state.get("zk")
         if isinstance(zk, (int, float)) and not isinstance(zk, bool):
-            safe["zk"] = min(5.0, max(1.5, float(zk)))
+            safe["zk"] = min(5.0, max(1.1, float(zk)))
+        zr = state.get("zr")
+        if isinstance(zr, list) and len(zr) == 4 and all(isinstance(q, (int, float)) and not isinstance(q, bool) and -0.5 <= q <= 1.5 for q in zr):
+            safe["zr"] = [float(q) for q in zr]
+        zg = state.get("zg")
+        if isinstance(zg, (int, float)) and not isinstance(zg, bool):
+            safe["zg"] = min(1.0, max(0.2, float(zg)))
         for key in ("u", "v"):                                         # レーザー・拡大の位置（スライド上の 0〜1。スライドの外は null）
             if key in state:
                 val = state[key]
@@ -437,11 +443,11 @@ class DeckHost:
                 except Exception:
                     pass
 
-    def running(self):
-        """発表中か。発表中なら、開いている画面を前に出す。"""
+    def running(self, front=False):
+        """発表中か。front=True なら、開いている画面を前に出す。"""
         with self._lock:
             ws = list(self._windows.values())
-        for w in ws:
+        for w in (ws if front else []):
             try:
                 w.restore()
                 w.show()

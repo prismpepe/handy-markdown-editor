@@ -17,6 +17,7 @@
   const nearestLaser = n => LASER_SIZES.reduce((b, x) => Math.abs(x - n) < Math.abs(b - n) ? x : b, LASER_SIZES[0]);
   let laserUnits = Math.min(160, Math.max(10, Number(cfg.laser) || 30));
   let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 2, ptr = { x: 0, y: 0 };
+  let zoomHold = false, zoomGain = 0.6, zptr = { x: 0, y: 0 };      // 拡大の固定（クリック）と、画面の動く速さ（Shift+ホイール）。zptr は、拡大の中心
   let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
   const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black, ratio: ratioKey })); };
 
@@ -26,6 +27,12 @@
   function slideToViewport(u, v) {
     const vw = innerWidth, vh = innerHeight, sc = Math.min(vw / W, vh / H);
     return { x: (vw - W * sc) / 2 + u * W * sc, y: (vh - H * sc) / 2 + v * H * sc };
+  }
+  let zsel = null;                                                    // 拡大中のドラッグ（拡大する範囲の選択）
+  function zselBox() {
+    let b = document.getElementById('zsel');
+    if (!b) { b = document.createElement('div'); b.id = 'zsel'; b.style.cssText = 'position:fixed;z-index:30;pointer-events:none;border:2px dashed #ffd43b;background:rgba(255,212,59,.18);display:none'; document.body.appendChild(b); }
+    return b;
   }
   let lastPtrSend = 0;
   // 発表者ビューで、「いまのスライド」の上のマウスの位置を、聴衆の画面へ送る（レーザー・部分拡大が入っているとき）
@@ -63,6 +70,28 @@
     applyLaser(); renderInk();
     if (!remote) { toast('ポインター・ペンの大きさ: ' + (LASER_SIZES.indexOf(nearestLaser(laserUnits)) + 1) + ' / ' + LASER_SIZES.length); send({ lz: laserUnits }); }
   }
+  function trackZoom(p) {                                      // マウスの位置から、拡大の中心を決める。固定中は動かさない。速さ（zoomGain）が 1 より小さいと、画面の中心寄りになる
+    if (zoomHold) return;
+    zptr = { x: innerWidth / 2 + (p.x - innerWidth / 2) * zoomGain, y: innerHeight / 2 + (p.y - innerHeight / 2) * zoomGain };
+  }
+  // 拡大中にドラッグした四角（窓の座標。拡大後の画面の上）を、拡大していない画面の座標へ戻す
+  function toUnzoomed(p) { return { x: (p.x - zptr.x) / zoomK + zptr.x, y: (p.y - zptr.y) / zoomK + zptr.y }; }
+  // 拡大していない画面の座標の四角が、窓いっぱいになるように拡大する（位置は固定になる）
+  function zoomToRect(a, b) {
+    const vw = innerWidth, vh = innerHeight, w0 = Math.abs(b.x - a.x), h0 = Math.abs(b.y - a.y);
+    if (w0 < 8 || h0 < 8) return false;
+    const k = Math.round(Math.min(5, Math.max(1.1, Math.min(vw / w0, vh / h0))) * 100) / 100;
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    zoomK = k; zptr = { x: (k * cx - vw / 2) / (k - 1), y: (k * cy - vh / 2) / (k - 1) }; zoomHold = true;
+    applyTransform();
+    return true;
+  }
+  function toggleZoomHold() {
+    zoomHold = !zoomHold;
+    if (!zoomHold) { trackZoom(ptr); applyTransform(); }
+    toast(zoomHold ? '拡大の位置を固定しました（もう一度クリックで、マウスに合わせて動きます）' : '拡大の固定を解除しました');
+    if (role === 'presenter') send({ zh: zoomHold });
+  }
   function applyTransform() {
     const vw = innerWidth, vh = innerHeight;
     scale = Math.min(vw / W, vh / H);
@@ -70,7 +99,7 @@
     const el = $('scaler');
     if (zoomOn) {
       const k = zoomK;
-      el.style.transform = 'translate(' + (k * (tx - ptr.x) + ptr.x) + 'px,' + (k * (ty - ptr.y) + ptr.y) + 'px) scale(' + (k * scale) + ')';
+      el.style.transform = 'translate(' + (k * (tx - zptr.x) + zptr.x) + 'px,' + (k * (ty - zptr.y) + zptr.y) + 'px) scale(' + (k * scale) + ')';
     } else {
       el.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
     }
@@ -349,7 +378,7 @@
   // ---- 操作
   const HELP = [['→ ↓ Space Enter', '次のスライド'], ['← ↑ BackSpace', '前のスライド'], ['Home / End', '最初 / 最後'], ['数字 + Enter', 'そのスライドへ'],
     ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインターの入切（入れている間、ドラッグで書き込める）'], ['[ / ]', 'ポインター・ペンの大きさ（小さく / 大きく）'], ['C', 'ペンの色'], ['M', 'ペンの種類（ペン・マーカー・直線・矢印）'],
-    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（ホイールで倍率）'],
+    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（ドラッグした範囲を拡大。ホイールで倍率 1.1〜5 倍。Shift+ホイールで動く速さ。クリックで位置を固定／解除）'],
     ['R', '画面の比率を切り替える'], ['F', '全画面の入切'], ['O', '発表者ビューを開く'], ['P / Shift+P', '印刷 / ノート付きの配布資料'], ['Esc', '閉じる'], ['?', 'この説明']];
   function toggleHelp() {
     const h = $('help'); if (!h.firstChild) h.innerHTML = '<div>' + HELP.map(r => '<div><b>' + r[0] + '</b>' + r[1] + '</div>').join('') + '</div>';
@@ -391,9 +420,9 @@
       if (!laserOn && press) { press = null; endStroke(); }
     }
     else if (k === 'z' || k === 'Z') {
-      zoomOn = !zoomOn; applyTransform();
-      toast(zoomOn ? (role === 'presenter' ? '部分拡大: 入（「いまのスライド」の上で動かすと、聴衆の画面が拡大されます。ホイールで倍率）' : '部分拡大: 入（ホイールで倍率）') : '部分拡大: 切');
-      if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK });
+      zoomOn = !zoomOn; zoomHold = false; trackZoom(ptr); applyTransform();
+      toast(zoomOn ? (role === 'presenter' ? '部分拡大: 入・' + zoomK.toFixed(1) + ' 倍（「いまのスライド」の上で動かすと、聴衆の画面が拡大されます。ホイールで倍率。小さくも大きくもできます）' : '部分拡大: 入・' + zoomK.toFixed(1) + ' 倍（ホイールで倍率、Shift+ホイールで動く速さ、クリックで位置を固定）') : '部分拡大: 切');
+      if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK, zh: false, zg: zoomGain });
     }
     else if (k === 'r' || k === 'R') setRatio(RATIOS[(RATIOS.findIndex(r => r[0] === ratioKey) + 1) % RATIOS.length][0]);
     else if (k === 'm' || k === 'M') cyclePenTool();
@@ -423,16 +452,19 @@
       if (typeof s.lz === 'number' && role === 'presenter') setLaser(s.lz, true);
       if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
         if (typeof s.lz === 'number') setLaser(s.lz, true);
-        if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1.5, s.zk));
+        if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1.1, s.zk));
+        if (typeof s.zg === 'number') zoomGain = Math.min(1, Math.max(0.2, s.zg));
+        if (Array.isArray(s.zr) && s.zr.length === 4) { zoomToRect(slideToViewport(s.zr[0], s.zr[1]), slideToViewport(s.zr[2], s.zr[3])); }
+        else if (typeof s.zh === 'boolean') { zoomHold = s.zh; if (!zoomHold) trackZoom(ptr); }
         if (typeof s.zoom === 'boolean') { zoomOn = s.zoom; applyTransform(); }
         if ('u' in s || 'v' in s) {
           const l = $('laser');
           if (typeof s.u !== 'number' || typeof s.v !== 'number') l.style.visibility = 'hidden';
-          else { const p = slideToViewport(s.u, s.v); ptr = p; l.style.left = p.x + 'px'; l.style.top = p.y + 'px'; l.style.visibility = ''; if (zoomOn) applyTransform(); }
-        } else if (typeof s.zk === 'number' && zoomOn) applyTransform();
+          else { const p = slideToViewport(s.u, s.v); ptr = p; l.style.left = p.x + 'px'; l.style.top = p.y + 'px'; l.style.visibility = ''; trackZoom(p); if (zoomOn) applyTransform(); }
+        } else if ((typeof s.zk === 'number' || typeof s.zg === 'number' || typeof s.zh === 'boolean') && zoomOn) applyTransform();
       }
       if (typeof s.i === 'number') show(s.i, true); },
-    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, draw: laserOn, tool: PEN_TOOLS[penTool][0], color: penColor, ink: (marks[idx] || []).length, inkAll: Object.values(marks).reduce((n, a) => n + a.length, 0), lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
+    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, zh: zoomHold, zg: zoomGain, draw: laserOn, tool: PEN_TOOLS[penTool][0], color: penColor, ink: (marks[idx] || []).length, inkAll: Object.values(marks).reduce((n, a) => n + a.length, 0), lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
     next: next, prev: prev, goto: i => show(i), overflow: overflowList, shrunk: shrunkList, setRatio: setRatio, fitAll: fitAll, print: printDeck,
     preparePrint: preparePrint, endPrint: endPrint,
   };
@@ -454,38 +486,82 @@
       ptr = { x: e.clientX, y: e.clientY };
       const l = $('laser'); l.style.left = e.clientX + 'px'; l.style.top = e.clientY + 'px';
       if (role !== 'presenter') l.style.visibility = '';                                   // 手元から消された点も、この画面のマウスが動けば、また出る
-      if (zoomOn) applyTransform();
+      if (zoomOn) { trackZoom(ptr); applyTransform(); }
       if (role === 'presenter' && (laserOn || zoomOn)) pointerToAudience(e);
       document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
     });
-    $('stage').addEventListener('click', e => { if (suppressClick) { suppressClick = false; return; } if (e.button === 0 && !overviewOn) next(); });
+    $('stage').addEventListener('click', e => { if (suppressClick) { suppressClick = false; return; } if (e.button === 0 && !overviewOn) { if (zoomOn) toggleZoomHold(); else next(); } });
     $('screen').addEventListener('click', () => setScreen(''));                                          // 暗転は、クリックでも戻る
     $('stage').addEventListener('contextmenu', e => { e.preventDefault(); prev(); });                       // 右クリック = 前のスライド（書き込みの入切に関わらず、従来どおり）
     // 書き込み: レーザーポインター（L）が入っているときだけ。左ボタンのドラッグ（5px 以上動いたら始まる）。動かさずに離せば、ふつうのクリック（次へ）
     const inDrawArea = t => role === 'presenter' ? !!(t.closest && t.closest('#presenter .cur-pane')) : !!(t.closest && t.closest('#stage'));
     document.addEventListener('mousedown', e => {
-      if (!laserOn || overviewOn || $('help').classList.contains('on') || !inDrawArea(e.target)) return;
+      if (zoomOn && e.button === 0 && !overviewOn && !$('help').classList.contains('on') && inDrawArea(e.target)) {
+        zsel = { x: e.clientX, y: e.clientY, started: false, prevHold: zoomHold };
+        zoomHold = true;                                                // 選んでいる間は、拡大の位置を動かさない
+        if (role === 'presenter') send({ zh: true });
+        return;
+      }
+      if (zoomOn || !laserOn || overviewOn || $('help').classList.contains('on') || !inDrawArea(e.target)) return;
       if (e.button === 0) press = { x: e.clientX, y: e.clientY, shift: e.shiftKey, ctrl: e.ctrlKey, started: false };
     });
     document.addEventListener('mousemove', e => {
+      if (zsel) {
+        if (!(e.buttons & 1)) { cancelZsel(); return; }
+        if (!zsel.started && Math.hypot(e.clientX - zsel.x, e.clientY - zsel.y) > 5) zsel.started = true;
+        if (zsel.started) {
+          const b = zselBox(), x = Math.min(zsel.x, e.clientX), y = Math.min(zsel.y, e.clientY);
+          b.style.display = 'block'; b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.width = Math.abs(e.clientX - zsel.x) + 'px'; b.style.height = Math.abs(e.clientY - zsel.y) + 'px';
+        }
+        return;
+      }
       if (!press) return;
       if (!(e.buttons & 1)) { press = null; endStroke(); return; }
       if (!press.started && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5) { press.started = true; startStroke(press.x, press.y, press.shift, press.ctrl); }
       if (press.started) extendStroke(e.clientX, e.clientY);
     });
+    function cancelZsel() {
+      if (!zsel) return;
+      zoomHold = zsel.prevHold; zselBox().style.display = 'none';
+      if (role === 'presenter') send({ zh: zoomHold });
+      if (!zoomHold) { trackZoom(ptr); applyTransform(); }
+      zsel = null;
+    }
     document.addEventListener('mouseup', e => {
+      if (zsel && e.button === 0) {
+        const s = zsel, was = s.started;
+        zselBox().style.display = 'none';
+        if (!was) { cancelZsel(); return; }                             // 動かさずに離したときは、ふつうのクリック（固定／解除）
+        zsel = null;
+        suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+        if (role === 'presenter') {
+          const inner = document.querySelector('#presenter .cur-pane .inner');
+          if (!inner) return;
+          const r = inner.getBoundingClientRect();
+          const u1 = (s.x - r.left) / r.width, v1 = (s.y - r.top) / r.height, u2 = (e.clientX - r.left) / r.width, v2 = (e.clientY - r.top) / r.height;
+          const du = Math.abs(u2 - u1), dv = Math.abs(v2 - v1);
+          if (du * r.width < 8 || dv * r.height < 8) { cancelZsel2(s); return; }
+          zoomK = Math.round(Math.min(5, Math.max(1.1, Math.min(1 / du, 1 / dv))) * 100) / 100;       // 手元の目安（聴衆の画面の倍率は、窓の形で少し違う）
+          zoomHold = true;
+          send({ zr: [u1, v1, u2, v2], zk: zoomK, zh: true });
+        } else if (!zoomToRect(toUnzoomed({ x: s.x, y: s.y }), toUnzoomed({ x: e.clientX, y: e.clientY }))) { zoomHold = s.prevHold; }
+        else toast('選んだ範囲を拡大しました（' + zoomK.toFixed(1) + ' 倍。クリックで、マウスに合わせて動くように戻ります）');
+        return;
+      }
       if (e.button === 0 && press) { if (press.started) { endStroke(); suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); } press = null; }
     });
 
+    function cancelZsel2(s) { zoomHold = s.prevHold; if (role === 'presenter') send({ zh: zoomHold }); }
     if (role === 'presenter') {                                                                        // 手元の画面でも、スライドの上のクリックで進める（左: 次、右: 前）
       const inPane = t => !!(t.closest && t.closest('#presenter .cur-pane, #presenter .next-pane'));
-      document.addEventListener('click', e => { if (e.button !== 0 || !inPane(e.target)) return; if (suppressClick) { suppressClick = false; return; } next(); });
+      document.addEventListener('click', e => { if (e.button !== 0 || !inPane(e.target)) return; if (suppressClick) { suppressClick = false; return; } if (zoomOn) toggleZoomHold(); else next(); });
       document.addEventListener('contextmenu', e => { if (inPane(e.target)) { e.preventDefault(); prev(); } });
     }
     document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a'); if (a) e.preventDefault(); }, true);     // 発表中は、リンクを開かない（ウィンドウが別のページに変わらないように）
     document.addEventListener('wheel', e => {
       if (overviewOn) return;
-      if (zoomOn) { zoomK = Math.min(5, Math.max(1.5, zoomK + (e.deltaY < 0 ? 0.25 : -0.25))); applyTransform(); toast('拡大 ' + zoomK.toFixed(2) + ' 倍'); if (role === 'presenter') send({ zk: zoomK }); e.preventDefault(); return; }
+      if (zoomOn && e.shiftKey) { zoomGain = Math.round(Math.min(1, Math.max(0.2, zoomGain + (e.deltaY < 0 ? 0.1 : -0.1))) * 10) / 10; trackZoom(ptr); applyTransform(); toast('拡大中の、画面の動く速さ ' + Math.round(zoomGain * 100) + '%'); if (role === 'presenter') send({ zg: zoomGain }); e.preventDefault(); return; }
+      if (zoomOn) { const up = e.deltaY < 0; zoomK = Math.round(Math.min(5, Math.max(1.1, zoomK + (up ? (zoomK < 2 ? 0.1 : 0.25) : (zoomK <= 2 ? -0.1 : -0.25)))) * 100) / 100; applyTransform(); toast('拡大 ' + zoomK.toFixed(2) + ' 倍'); if (role === 'presenter') send({ zk: zoomK }); e.preventDefault(); return; }
       const now = Date.now(); if (now - lastWheel < 350) return; lastWheel = now;
       if (e.deltaY > 0) next(); else if (e.deltaY < 0) prev();
     }, { passive: false });

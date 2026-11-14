@@ -445,6 +445,26 @@ def drive():
     pres.evaluate_js(mv % ("0.5", "0.5")); time.sleep(.6)
     pres.evaluate_js("document.dispatchEvent(new WheelEvent('wheel', {deltaY: -100, bubbles: true, cancelable: true}))"); time.sleep(.8)
     check("発表者ビューのホイールで、聴衆の画面の拡大の倍率が変わる（2 → 2.25）", [aud.evaluate_js("Deck.state().zk"), aud.evaluate_js("document.getElementById('scaler').style.transform.includes('scale(')")], [2.25, True])
+    wh = "document.dispatchEvent(new WheelEvent('wheel', {deltaY: %d, shiftKey: %s, bubbles: true, cancelable: true}))"
+    pres.evaluate_js(wh % (100, 'false')); pres.evaluate_js(wh % (100, 'false')); time.sleep(.5)
+    check("ホイールで小さくするとき、2 倍までは 0.1 倍刻み（2.25 → 2 → 1.9）", aud.evaluate_js("Deck.state().zk"), 1.9)
+    pres.evaluate_js(wh % (100, 'true')); time.sleep(.5)
+    check("Shift+ホイールで、動く速さが変わり、聴衆の画面にも合う（60% → 50%）", [aud.evaluate_js("Deck.state().zg"), pres.evaluate_js("Deck.state().zg")], [0.5, 0.5])
+    pres.evaluate_js(mv % ("0.3", "0.3")); time.sleep(.6)
+    t1 = aud.evaluate_js("document.getElementById('scaler').style.transform")
+    pres.evaluate_js("document.querySelector('#presenter .cur-pane .inner').click()"); time.sleep(.5)
+    check("拡大中にクリックすると、位置が固定され（スライドは進まない）、聴衆の画面にも合う", [aud.evaluate_js("Deck.state().zh"), pres.evaluate_js("Deck.state().zh"), st(aud)['i'] == st(pres)['i']], [True, True, True])
+    pres.evaluate_js(mv % ("0.8", "0.7")); time.sleep(.6)
+    check("固定中は、マウスを動かしても、拡大の位置は動かない", aud.evaluate_js("document.getElementById('scaler').style.transform"), t1)
+    pres.evaluate_js("document.querySelector('#presenter .cur-pane .inner').click()"); time.sleep(.3)
+    pres.evaluate_js(mv % ("0.9", "0.9")); time.sleep(.6)
+    check("もう一度クリックして解除すると、また動く", [aud.evaluate_js("Deck.state().zh"), aud.evaluate_js("document.getElementById('scaler').style.transform") != t1], [False, True])
+    rp = "(() => { const r = document.querySelector('#presenter .cur-pane .inner').getBoundingClientRect(); const f = (n, x, y) => (n === 'mousemove' || n === 'mouseup' ? document : document.querySelector('#presenter .cur-pane .inner')).dispatchEvent(new MouseEvent(n, {clientX: r.left + r.width * x, clientY: r.top + r.height * y, button: 0, buttons: n === 'mouseup' ? 0 : 1, bubbles: true})); f('mousedown', %s, %s); f('mousemove', %s, %s); f('mouseup', %s, %s); })()"
+    pres.evaluate_js(rp % (0.25, 0.25, 0.5, 0.45, 0.5, 0.45)); time.sleep(.8)
+    zs = [aud.evaluate_js("Deck.state().zk"), aud.evaluate_js("Deck.state().zh"), st(aud)['i'] == st(pres)['i']]
+    check("拡大中にドラッグすると、その範囲が拡大され（4 倍前後）、位置は固定になる", [3 < zs[0] <= 5, zs[1], zs[2]], [True, True, True])
+    ct = aud.evaluate_js("(() => { const s = document.getElementById('scaler').getBoundingClientRect(), v = [innerWidth / 2, innerHeight / 2]; return [(v[0] - s.left) / s.width, (v[1] - s.top) / s.height]; })()")
+    check("拡大した範囲の中心が、窓の中心にくる（スライドの 0.375・0.35 付近）", [abs(ct[0] - 0.375) < 0.03, abs(ct[1] - 0.35) < 0.03], [True, True])
     key(pres, "z"); key(pres, "l"); time.sleep(.8)
     check("もう一度 Z・L で、聴衆の画面の拡大とレーザーが切れる", [st(aud)["zoom"], st(aud)["laser"], st(pres)["laser"]], [False, False, False])
     check("発表者ビューは、ノートと次のスライドを出す",
@@ -501,7 +521,10 @@ def drive():
     check("ダイアログの項目（画面・テーマ・比率・開始・発表者ビュー）", all(t in js("window.__form") for t in ('発表を出す画面', 'デザイン（テーマ）', '画面の比率', '開始', '発表者ビュー', 'レーザーポインターの大きさ')), True)
     check("開いたウィンドウに、スライドが入っている", bool(api._deck._windows) and wait("!!(window.Deck && window.Deck.state)", 20, api._deck._windows['audience']), True)
     check("選んだ設定が、次回の既定として保存される", sorted(api.get_prefs().get('deck', {}).keys()), ['laser', 'presenter', 'ratio', 'screen', 'theme'])
-    api._deck.close(); time.sleep(1)
+    check("発表中は、「発表」ボタンが押せなくなる", wait("document.getElementById('bDeck').disabled === true", 10), True)
+    api._deck.close()
+    check("発表を終えると、「発表」ボタンがまた押せる", wait("document.getElementById('bDeck').disabled === false", 10), True)
+    time.sleep(1)
 
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
