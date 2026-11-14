@@ -80,6 +80,12 @@ body.presenter #hud { display: none; }
 #presenter .next-pane { flex: 0 0 38%; }
 #presenter .notes { flex: 1 1 auto; padding: 12px 16px; overflow: auto; background: #0b0e13; border-radius: 8px; font-size: var(--note-size, 22px); line-height: 1.6; }
 #presenter .notes.empty { color: #6e7681; }
+#presenter .modes { position: absolute; right: 8px; top: 6px; z-index: 3; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; pointer-events: none; }
+#presenter .mode { font-size: 16px; font-weight: bold; padding: 3px 12px; border-radius: 12px; color: #fff; }
+#presenter .mode.l { background: #d63a3a; }
+#presenter .mode.z { background: #b8860b; }
+#presenter .mode.p { background: rgba(0, 0, 0, .72); border: 1px solid #5b6572; }
+#presenter .mode .sw { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 6px; vertical-align: -2px; border: 1px solid #fff; }
 #presenter .label { position: absolute; left: 8px; top: 6px; z-index: 2; font-size: 12px; color: #9da7b3; background: rgba(0, 0, 0, .55); padding: 0 8px; border-radius: 8px; }
 #presenter .inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 #presenter .bar { grid-column: 1 / 3; grid-row: 2; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }

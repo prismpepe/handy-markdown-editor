@@ -405,7 +405,7 @@ class DeckHost:
                 safe[key] = state[key]
         zk = state.get("zk")
         if isinstance(zk, (int, float)) and not isinstance(zk, bool):
-            safe["zk"] = min(5.0, max(1.1, float(zk)))
+            safe["zk"] = min(5.0, max(1.0, float(zk)))
         zr = state.get("zr")
         if isinstance(zr, list) and len(zr) == 4 and all(isinstance(q, (int, float)) and not isinstance(q, bool) and -0.5 <= q <= 1.5 for q in zr):
             safe["zr"] = [float(q) for q in zr]

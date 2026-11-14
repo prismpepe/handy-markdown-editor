@@ -442,7 +442,14 @@ def drive():
     check("スライドの外にマウスを出すと、聴衆の画面の点は消える", aud.evaluate_js("document.getElementById('laser').style.visibility"), "hidden")
     key(pres, "z"); time.sleep(.6)
     check("発表者ビューで Z を押すと、聴衆の画面で部分拡大が入る", [st(pres)["zoom"], st(aud)["zoom"]], [True, True])
+    check("部分拡大は、等倍から始まる（入れた直後は拡大されていない）", [aud.evaluate_js("Deck.state().zk"), pres.evaluate_js("Deck.state().zk")], [1, 1])
     pres.evaluate_js(mv % ("0.5", "0.5")); time.sleep(.6)
+    for _ in range(10):
+        pres.evaluate_js("document.dispatchEvent(new WheelEvent('wheel', {deltaY: -100, bubbles: true, cancelable: true}))")
+    time.sleep(.6)
+    mt = pres.evaluate_js("document.getElementById('pmodes').textContent")
+    check("発表者ビューに、L・Z の入切と状態が、いつも表示される", ["L 入" in mt, "Z 入" in mt, "書き込み" in mt, "太さ" in mt, "赤" in mt, "ペン" in mt, "動く速さ" in mt], [True] * 7)
+    check("ホイールで、等倍から 0.1 倍ずつ上がる（10 回で 2 倍）", aud.evaluate_js("Deck.state().zk"), 2)
     pres.evaluate_js("document.dispatchEvent(new WheelEvent('wheel', {deltaY: -100, bubbles: true, cancelable: true}))"); time.sleep(.8)
     check("発表者ビューのホイールで、聴衆の画面の拡大の倍率が変わる（2 → 2.25）", [aud.evaluate_js("Deck.state().zk"), aud.evaluate_js("document.getElementById('scaler').style.transform.includes('scale(')")], [2.25, True])
     wh = "document.dispatchEvent(new WheelEvent('wheel', {deltaY: %d, shiftKey: %s, bubbles: true, cancelable: true}))"

@@ -16,7 +16,7 @@
   const LASER_SIZES = [14, 18, 24, 30, 40, 48, 60, 72, 96];
   const nearestLaser = n => LASER_SIZES.reduce((b, x) => Math.abs(x - n) < Math.abs(b - n) ? x : b, LASER_SIZES[0]);
   let laserUnits = Math.min(160, Math.max(10, Number(cfg.laser) || 30));
-  let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 2, ptr = { x: 0, y: 0 };
+  let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 1, ptr = { x: 0, y: 0 };
   let zoomHold = false, zoomGain = 0.6, zptr = { x: 0, y: 0 };      // 拡大の固定（クリック）と、画面の動く速さ（Shift+ホイール）。zptr は、拡大の中心
   let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
   const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black, ratio: ratioKey })); };
@@ -293,16 +293,29 @@
   // 発表者ビューの下に出す、キー操作のメモ（キーは、この画面でも、聴衆の画面でも使える。L・Z は、マウスのある画面で働く）
   const PRESENTER_HINT = '<b>→</b>次　<b>←</b>前　<b>数字+Enter</b>そのスライドへ　<b>G</b>スライド一覧　<b>B</b>暗転　<b>W</b>白画面　<b>R</b>画面の比率　<b>F</b>全画面　<b>?</b>操作の一覧'
     + '<br><b>L</b>レーザーポインター　<b>[</b><b>]</b>大きさ　<b>C</b>色　<b>M</b>ペンの種類　<b>ドラッグ</b>書き込み（Shift 直線・Ctrl 矢印）　<b>U</b>戻す　<b>E</b>消す'
-    + '<br><b>Z</b>部分拡大　<b>ドラッグ</b>囲んだ範囲を拡大（L が切れているとき）　<b>ホイール</b>倍率　<b>Shift+ホイール</b>動く速さ　<b>クリック</b>位置を固定・解除'
+    + '<br><b>Z</b>部分拡大（等倍から）　<b>ドラッグ</b>囲んだ範囲を拡大（L が切れているとき）　<b>ホイール</b>倍率　<b>Shift+ホイール</b>動く速さ　<b>クリック</b>位置を固定・解除　<b>Z を切って入れ直す</b>等倍に戻る'
     + '<br><span class="sub">L が入っていれば、Z との順序に関係なく、ドラッグは書き込み</span>';
+  function renderModes() {
+    const el = $('pmodes'); if (!el) return;
+    const tag = (cls, text) => '<span class="mode ' + cls + '">' + text + '</span>';
+    let h = '';
+    if (laserOn) {
+      const col = PEN_COLORS[penColor], sz = LASER_SIZES.indexOf(nearestLaser(laserUnits)) + 1;
+      h += tag('l', 'L 入：ドラッグ＝書き込み');
+      h += tag('p', '<i class="sw" style="background:' + col[1] + '"></i>' + col[0] + '　' + PEN_TOOLS[penTool][1].split('（')[0] + '　太さ ' + sz + '/' + LASER_SIZES.length);
+    }
+    if (zoomOn) h += tag('z', 'Z 入：' + (zoomK <= 1 ? '等倍' : zoomK.toFixed(1) + ' 倍') + (zoomHold ? '（位置を固定中）' : '') + '　動く速さ ' + Math.round(zoomGain * 100) + '%' + (laserOn ? '' : '　ドラッグ＝範囲を拡大'));
+    if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }
+  }
   function buildPresenter() {
     const p = $('presenter');
-    p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="inner"></div></div>'
+    p.innerHTML = '<div class="pane cur-pane"><span class="label">いまのスライド</span><div class="modes" id="pmodes"></div><div class="inner"></div></div>'
       + '<div class="side"><div class="pane next-pane"><span class="label">次のスライド</span><div class="inner"></div></div><div class="notes empty"></div></div>'
       + '<div class="bar"><span class="big" id="pcount"></span><span class="big" id="pelapsed">00:00</span><span id="pclock"></span><span class="grow warnline" id="pwarn"></span>'
       + '<button id="pprev">◀ 前へ</button><button id="pnext">次へ ▶</button><button id="pblack">暗転</button><button id="ptimer">タイマーを戻す</button><button id="pnoteminus">ノート −</button><button id="pnoteplus">ノート ＋</button></div>'
       + '<div class="hint" id="phint">' + PRESENTER_HINT + '</div>';
     $('pprev').onclick = prev; $('pnext').onclick = next;
+    setInterval(renderModes, 150);                                          // L・Z の入切と、拡大の状態を、いつも見える所に出す
     $('pblack').onclick = () => setScreen(black ? '' : 'black');
     $('ptimer').onclick = () => { startTime = Date.now(); tick(); };
     $('pnoteminus').onclick = () => { noteSize = Math.max(12, noteSize - 2); p.style.setProperty('--note-size', noteSize + 'px'); };
@@ -379,7 +392,7 @@
   // ---- 操作
   const HELP = [['→ ↓ Space Enter', '次のスライド'], ['← ↑ BackSpace', '前のスライド'], ['Home / End', '最初 / 最後'], ['数字 + Enter', 'そのスライドへ'],
     ['G / Tab', 'スライド一覧'], ['B / W', '暗転 / 白画面'], ['L', 'レーザーポインターの入切（入れている間、ドラッグで書き込める）'], ['[ / ]', 'ポインター・ペンの大きさ（小さく / 大きく）'], ['C', 'ペンの色'], ['M', 'ペンの種類（ペン・マーカー・直線・矢印）'],
-    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（L が切れているとき、ドラッグした範囲を拡大。ホイールで倍率 1.1〜5 倍。Shift+ホイールで動く速さ。クリックで位置を固定／解除）'],
+    ['ドラッグ', '書き込み（Shift: 直線、Ctrl: 矢印）'], ['U / E / Shift+E', '1 本戻す / このスライドを消す / すべて消す'], ['Z', '部分拡大（入れた直後は等倍。L が切れているとき、ドラッグした範囲を拡大。ホイールで倍率 1〜5 倍。切って入れ直すと等倍。Shift+ホイールで動く速さ。クリックで位置を固定／解除）'],
     ['R', '画面の比率を切り替える'], ['F', '全画面の入切'], ['O', '発表者ビューを開く'], ['P / Shift+P', '印刷 / ノート付きの配布資料'], ['Esc', '閉じる'], ['?', 'この説明']];
   function toggleHelp() {
     const h = $('help'); if (!h.firstChild) h.innerHTML = '<div>' + HELP.map(r => '<div><b>' + r[0] + '</b>' + r[1] + '</div>').join('') + '</div>';
@@ -421,8 +434,8 @@
       if (!laserOn && press) { press = null; endStroke(); }
     }
     else if (k === 'z' || k === 'Z') {
-      zoomOn = !zoomOn; zoomHold = false; trackZoom(ptr); applyTransform();
-      toast(zoomOn ? (role === 'presenter' ? '部分拡大: 入・' + zoomK.toFixed(1) + ' 倍（「いまのスライド」の上で動かすと、聴衆の画面が拡大されます。ホイールで倍率。小さくも大きくもできます）' : '部分拡大: 入・' + zoomK.toFixed(1) + ' 倍（ホイールで倍率、Shift+ホイールで動く速さ、クリックで位置を固定）') : '部分拡大: 切');
+      zoomOn = !zoomOn; zoomHold = false; zoomK = 1; trackZoom(ptr); applyTransform();                    // 入れた直後は、等倍（ドラッグで範囲を選べる）。切って入れ直すと、等倍に戻る
+      toast(zoomOn ? '部分拡大: 入（等倍から。ドラッグで範囲を選ぶ・ホイールで倍率）' : '部分拡大: 切');
       if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK, zh: false, zg: zoomGain });
     }
     else if (k === 'r' || k === 'R') setRatio(RATIOS[(RATIOS.findIndex(r => r[0] === ratioKey) + 1) % RATIOS.length][0]);
@@ -453,7 +466,7 @@
       if (typeof s.lz === 'number' && role === 'presenter') setLaser(s.lz, true);
       if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
         if (typeof s.lz === 'number') setLaser(s.lz, true);
-        if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1.1, s.zk));
+        if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1, s.zk));
         if (typeof s.zg === 'number') zoomGain = Math.min(1, Math.max(0.2, s.zg));
         if (Array.isArray(s.zr) && s.zr.length === 4) { zoomToRect(slideToViewport(s.zr[0], s.zr[1]), slideToViewport(s.zr[2], s.zr[3])); }
         else if (typeof s.zh === 'boolean') { zoomHold = s.zh; if (!zoomHold) trackZoom(ptr); }
@@ -562,7 +575,7 @@
     document.addEventListener('wheel', e => {
       if (overviewOn) return;
       if (zoomOn && e.shiftKey) { zoomGain = Math.round(Math.min(1, Math.max(0.2, zoomGain + (e.deltaY < 0 ? 0.1 : -0.1))) * 10) / 10; trackZoom(ptr); applyTransform(); toast('拡大中の、画面の動く速さ ' + Math.round(zoomGain * 100) + '%'); if (role === 'presenter') send({ zg: zoomGain }); e.preventDefault(); return; }
-      if (zoomOn) { const up = e.deltaY < 0; zoomK = Math.round(Math.min(5, Math.max(1.1, zoomK + (up ? (zoomK < 2 ? 0.1 : 0.25) : (zoomK <= 2 ? -0.1 : -0.25)))) * 100) / 100; applyTransform(); toast('拡大 ' + zoomK.toFixed(2) + ' 倍'); if (role === 'presenter') send({ zk: zoomK }); e.preventDefault(); return; }
+      if (zoomOn) { const up = e.deltaY < 0; zoomK = Math.round(Math.min(5, Math.max(1, zoomK + (up ? (zoomK < 2 ? 0.1 : 0.25) : (zoomK <= 2 ? -0.1 : -0.25)))) * 100) / 100; applyTransform(); toast(zoomK <= 1 ? '等倍' : '拡大 ' + zoomK.toFixed(2) + ' 倍'); if (role === 'presenter') send({ zk: zoomK }); e.preventDefault(); return; }
       const now = Date.now(); if (now - lastWheel < 350) return; lastWheel = now;
       if (e.deltaY > 0) next(); else if (e.deltaY < 0) prev();
     }, { passive: false });
