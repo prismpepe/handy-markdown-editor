@@ -118,7 +118,7 @@ def clean_lint(value):
     return out
 
 
-SAFETY_DEFAULT = {"autosave": True, "interval": 30, "keep": 5}
+SAFETY_DEFAULT = {"autosave": True, "interval": 30, "keep": 5, "log": True}
 SAFETY_INTERVALS = (10, 30, 60, 120, 300, 600)       # 下書きを書く間隔（秒）
 SAFETY_KEEP = (1, 100)                               # 上書き前の退避を残す数
 
@@ -137,6 +137,8 @@ def clean_safety(value):
         return out
     if isinstance(value.get("autosave"), bool):
         out["autosave"] = value["autosave"]
+    if isinstance(value.get("log"), bool):                      # 動作の記録（診断ログ）の入切
+        out["log"] = value["log"]
     iv = _int_in(value.get("interval"), 1, 3600)
     if iv in SAFETY_INTERVALS:
         out["interval"] = iv

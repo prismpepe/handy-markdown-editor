@@ -623,6 +623,8 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div class="srow"><label>保存の間隔: <select id="sInterval"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="300">5分</option><option value="600">10分</option></select></label></div>
     <p class="hint" style="margin-top:14px">上書き保存の前に、元のファイルの内容を退避します（バックアップ）。退避は、置き場全体（ファイルごとではありません）で、新しいものから次の数だけ残します。</p>
     <div class="srow"><label>退避を残す数: <input id="sKeep" type="number" min="1" max="100" step="1"> 件（1〜100）</label></div>
+    <p class="hint" style="margin-top:14px">動作の記録（診断ログ）は、起動・終了・保存（ファイルの場所・文字数・結果だけ。<b>文書の内容は書きません</b>）・新しいウィンドウ・エラーを、<code>%APPDATA%\MarkdownEditor\log\</code> に残します。ウィンドウが突然消えた、保存が反映されなかった、といったときの原因を調べる材料です。</p>
+    <div class="srow"><label><input id="sLog" type="checkbox"> 動作の記録（診断ログ）を残す</label> <button id="sLogOpen" type="button">記録の場所を開く</button></div>
     <div class="srow"><span id="sMsg" class="hint"></span></div>
     <div class="btns"><button id="sClose" class="primary">閉じる</button></div>
   </div>
@@ -1949,7 +1951,7 @@ const safetyDlgOpen = () => !$('sveil').hidden;
 const restoreDlgOpen = () => !$('rveil').hidden;
 function safetyPref() {
   const p = prefs.safety || {};
-  return { autosave: p.autosave !== false, interval: p.interval || 30, keep: p.keep || 5 };
+  return { autosave: p.autosave !== false, interval: p.interval || 30, keep: p.keep || 5, log: p.log !== false };
 }
 function safetySave(patch) {
   prefs.safety = { ...safetyPref(), ...patch };
@@ -1967,6 +1969,8 @@ async function initSafety() {
   $('sveil').addEventListener('mousedown', e => { if (e.target === $('sveil')) closeSafetyDlg(); });
   $('sAuto').onchange = () => { safetySave({ autosave: $('sAuto').checked }); $('sInterval').disabled = !$('sAuto').checked; restartAutosave(); };
   $('sInterval').onchange = () => { safetySave({ interval: parseInt($('sInterval').value, 10) }); restartAutosave(); };
+  $('sLog').onchange = () => safetySave({ log: $('sLog').checked });
+  $('sLogOpen').onclick = async () => { const r = await api.open_log_folder(); if (r && r.error) $('sMsg').textContent = r.error; };
   $('sKeep').onchange = () => {
     const n = parseInt($('sKeep').value, 10);
     if (!(n >= 1 && n <= 100)) { $('sMsg').textContent = '1〜100 の整数で指定してください'; $('sKeep').value = safetyPref().keep; return; }
@@ -1979,7 +1983,7 @@ async function initSafety() {
 function openSafetyDlg() {
   const p = safetyPref();
   $('sAuto').checked = p.autosave; $('sInterval').value = String(p.interval); $('sInterval').disabled = !p.autosave;
-  $('sKeep').value = p.keep; $('sMsg').textContent = '';
+  $('sKeep').value = p.keep; $('sLog').checked = p.log; $('sMsg').textContent = '';
   $('sveil').hidden = false; $('sClose').focus();
 }
 function closeSafetyDlg() { $('sveil').hidden = true; renderAutoBtn(); cm.focus(); }

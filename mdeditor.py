@@ -21,6 +21,7 @@ import time
 import threading
 import webbrowser
 
+import applog
 import autolink
 import cjk_emphasis
 import clipboard
@@ -119,6 +120,10 @@ def drafts_root():
 
 def locks_root():
     return os.path.join(data_dir(), "locks")
+
+
+def log_root():
+    return os.path.join(data_dir(), "log")
 
 
 def load_settings():
@@ -349,6 +354,7 @@ class Api:
                 save_settings(settings)
             if "safety" in clean:        # 退避の数を減らしたら、すぐに古いものを片づける
                 filemodel.prune_backups(backup_root(), self.safety()["keep"])
+                applog.set_enabled(self.safety()["log"])           # 動作の記録の入切
         return {**layout, **clean}
 
     def list_fonts(self):
@@ -656,7 +662,9 @@ class Api:
                 return {"error": "新しいウィンドウでは開けません: %s" % path}
             args = [os.path.abspath(path)]
         if not multiwin.launch_self(args):
+            applog.event("new_window", result="failed")
             return {"error": "新しいウィンドウを開けませんでした"}
+        applog.event("new_window", result="ok", path=args[0] if args else "")
         return {"error": None}
 
     # --- スニペット（文中に挿入する定型文。snippets.py）-------------------------
@@ -774,6 +782,16 @@ class Api:
         vals = {str(k): v for k, v in (values or {}).items()} if isinstance(values, dict) else {}
         return snippets.expand(text[:snippets.MAX_BYTES], vals, selection)
 
+    def open_log_folder(self):
+        """動作の記録（診断ログ）の置き場を、エクスプローラーで開く（無ければ作る）。"""
+        folder = log_root()
+        try:
+            os.makedirs(folder, exist_ok=True)
+            os.startfile(folder)
+        except OSError as e:
+            return {"error": f"開けません: {e}"}
+        return {"error": None, "folder": folder}
+
     def open_snippet_folder(self):
         """自分のスニペットの場所を、エクスプローラーで開く（無ければ作る）。"""
         folder = self.snippet_folder()
@@ -801,12 +819,16 @@ class Api:
                 path, text, encoding, newline, expected_stamp=expected,
                 backup_root=backup_root(), backup_keep=self.safety()["keep"])
         except filemodel.Conflict:
+            applog.event("save", path=path, chars=len(text), result="conflict")
             return {"ok": False, "kind": "conflict"}
         except filemodel.EncodingFailure as e:
+            applog.event("save", path=path, chars=len(text), result="encoding")
             return {"ok": False, "kind": "encoding", "encoding": e.encoding,
                     "chars": e.chars}
         except OSError as e:
+            applog.event("save", path=path, chars=len(text), result="error", message=str(e))
             return {"ok": False, "kind": "error", "message": str(e)}
+        applog.event("save", path=path, chars=len(text), result="ok")
         return {"ok": True, "stamp": self._stamp_out(new_stamp)}
 
     def render(self, text, path=None):
@@ -1129,6 +1151,7 @@ class Api:
     def on_closing(self):
         """未保存があれば閉じずに、画面へ確認を出させる（False で閉じるのを止める）。"""
         if self._closing or not self._dirty:
+            applog.event("window_closing", dirty=bool(self._dirty))
             self.release_all_claims()
             if self._keeper:
                 self._keeper.save()          # 閉じることが決まったときだけ、位置と大きさを残す
@@ -1137,6 +1160,7 @@ class Api:
         threading.Thread(
             target=lambda: self._window.evaluate_js("requestClose()"),
             daemon=True).start()
+        applog.event("window_closing_blocked", reason="unsaved")
         return False
 
 
@@ -1298,6 +1322,9 @@ def main():
     import webview
     start = os.path.abspath(shellreg.clean_path_arg(args[0])) if args else None
     api = Api(start)
+    applog.setup(log_root(), api.safety()["log"], "editor", APP_VERSION)           # 動作の記録（設定で切れる）
+    applog.install_hooks()
+    applog.event("open", path=start or "")
     # 前回のウィンドウの位置・大きさを戻す（画面の外に出てしまう位置は使わない）
     geo = uiprefs.clean_window(load_settings().get("window"))
     width, height = geo.get("width", 1400), geo.get("height", 860)
@@ -1319,8 +1346,10 @@ def main():
     window.events.loaded += api._keeper.on_loaded
     window.events.loaded += lambda: _install_drop(window)
     window.events.closing += api.on_closing
-    window.events.closed += lambda: api._deck.close()          # 本体を終えたとき、発表の画面だけが残らないように
+    window.events.closed += lambda: (applog.event("window_closed"), api._deck.close())          # 本体を終えたとき、発表の画面だけが残らないように
+    window.events.loaded += lambda: applog.event("window_loaded")
     webview.start()
+    applog.event("webview_returned")
 
 
 if __name__ == "__main__":

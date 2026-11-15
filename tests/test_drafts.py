@@ -99,6 +99,8 @@ def test_clean_safety():
     assert uiprefs.clean_safety({"keep": 101}) == {} and uiprefs.clean_safety({"keep": 100}) == {"keep": 100}
     assert uiprefs.clean_safety({"autosave": "yes", "keep": True, "interval": 30.0}) == {"interval": 30}
     assert uiprefs.clean_safety(None) == {}
+    assert uiprefs.clean_safety({"log": False}) == {"log": False} and uiprefs.clean_safety({"log": "no"}) == {}     # 診断ログの入切
+    assert uiprefs.SAFETY_DEFAULT["log"] is True
     assert uiprefs.clean_prefs({"safety": {"keep": 9}}) == {"safety": {"keep": 9}}
 
 
@@ -121,9 +123,9 @@ def api(tmp_path, monkeypatch):
 
 
 def test_api_safety_defaults_and_set(api):
-    assert api.safety() == {"autosave": True, "interval": 30, "keep": 5}
+    assert api.safety() == {"autosave": True, "interval": 30, "keep": 5, "log": True}
     api.set_prefs({"safety": {"autosave": False, "keep": 2}})
-    assert api.safety() == {"autosave": False, "interval": 30, "keep": 2}
+    assert api.safety() == {"autosave": False, "interval": 30, "keep": 2, "log": True}
     assert api.get_prefs()["safety"] == {"autosave": False, "keep": 2}
 
 
