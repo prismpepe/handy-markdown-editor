@@ -1,6 +1,6 @@
 @echo off
 rem Build the exe and make the distribution zip.
-rem   release.cmd           run build.cmd (tests + exe), then make dist\MarkdownEditor_YYYYMMDD.zip
+rem   release.cmd           run build.cmd (tests + exe), then make dist\MarkdownEditor_v<version>.zip
 rem   release.cmd nobuild   make the zip from the existing dist\MarkdownEditor.exe
 setlocal
 cd /d "%~dp0"
