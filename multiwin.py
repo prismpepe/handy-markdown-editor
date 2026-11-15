@@ -74,7 +74,13 @@ def launch_self(args):
         flags = 0
         if os.name == "nt":
             flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        subprocess.Popen(cmd, close_fds=True, creationflags=flags)
+        # 単一ファイル型の exe が、自分自身を起動するとき、環境変数を引き継ぐと、新しいウィンドウは「元のウィンドウの子」として、
+        # 元の一時フォルダ（_MEI…）を共有してしまう。元のウィンドウを先に閉じると、一時フォルダを消せず
+        # 「Failed to remove temporary directory」の警告が出て、残った窓は、消されかけたフォルダで動くことになる。
+        # PYINSTALLER_RESET_ENVIRONMENT=1 で、独立した新しい起動として扱わせる（それぞれが自分の一時フォルダを持つ）。
+        env = dict(os.environ)
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        subprocess.Popen(cmd, close_fds=True, creationflags=flags, env=env)
         return True
     except OSError:
         return False

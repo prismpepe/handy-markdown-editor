@@ -70,6 +70,7 @@ def test_launch_self_uses_current_executable(monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", Fake)
     assert M.launch_self(["C:\docs\a.md"]) is True
     assert seen["cmd"][0] == sys.executable and seen["cmd"][-1] == "C:\docs\a.md"
+    assert seen["kw"]["env"]["PYINSTALLER_RESET_ENVIRONMENT"] == "1"              # 一時フォルダを、元のウィンドウと共有しない
     if os.name == "nt":
         assert seen["kw"]["creationflags"] & subprocess.DETACHED_PROCESS                # 元のウィンドウを閉じても、残る
     monkeypatch.setattr(sys, "frozen", True, raising=False)
