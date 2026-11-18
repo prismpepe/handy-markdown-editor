@@ -22,11 +22,15 @@
   --edit-font: Consolas, "BIZ UDGothic", "Yu Gothic UI", monospace;
   --body-font: "Yu Gothic UI", "Segoe UI"; --body-size: 14px;
   --code-font: Consolas, "Cascadia Mono", monospace; --code-size: 13px;
+  --c-red: #cf222e; --c-blue: #0969da; --c-green: #1a7f37; --c-orange: #bc4c00; --c-purple: #8250df; --c-gray: #6e7781;
+  --b-yellow: rgba(255, 211, 61, .55); --b-red: rgba(255, 129, 130, .4); --b-blue: rgba(84, 174, 255, .4); --b-green: rgba(74, 194, 107, .4); --b-orange: rgba(251, 143, 68, .4); --b-purple: rgba(194, 151, 255, .4); --b-gray: rgba(175, 184, 193, .45);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --side: #161b22;
     --border: #30363d; --accent: #58a6ff; --sel: #1f3a5f; --code: #1c2128;
+    --c-red: #ff7b72; --c-blue: #79c0ff; --c-green: #56d364; --c-orange: #ffa657; --c-purple: #d2a8ff; --c-gray: #8b949e;
+    --b-yellow: rgba(210, 153, 34, .5); --b-red: rgba(248, 81, 73, .4); --b-blue: rgba(56, 139, 253, .4); --b-green: rgba(46, 160, 67, .4); --b-orange: rgba(219, 109, 40, .45); --b-purple: rgba(163, 113, 247, .4); --b-gray: rgba(110, 118, 129, .5);
     --t-kw: #ff7b72; --t-str: #a5d6ff; --t-com: #8b949e; --t-num: #79c0ff; --t-fn: #d2a8ff; --t-bi: #ffa657; --t-var: #ffb38a; --t-del: #ffa198; --t-ins: #7ee787;
     --danger: #ff7b72; --warn: #d29922; --head: #79c0ff;
   }
@@ -195,6 +199,13 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #preview h1, #preview h2, #preview h3, #preview h4 { margin: 1.3em 0 .6em; line-height: 1.25; }
 #preview > :first-child { margin-top: 0; }
 #preview a { color: var(--accent); }
+/* 文字の色（<span class="red"> など）と、背景の色（<span class="bg-yellow"> など）。ダークでも読める色 */
+#preview .red { color: var(--c-red); } #preview .blue { color: var(--c-blue); } #preview .green { color: var(--c-green); }
+#preview .orange { color: var(--c-orange); } #preview .purple { color: var(--c-purple); } #preview .gray { color: var(--c-gray); }
+#preview .bg-yellow { background: var(--b-yellow); } #preview .bg-red { background: var(--b-red); } #preview .bg-blue { background: var(--b-blue); }
+#preview .bg-green { background: var(--b-green); } #preview .bg-orange { background: var(--b-orange); } #preview .bg-purple { background: var(--b-purple); }
+#preview .bg-gray { background: var(--b-gray); }
+#preview [class*="bg-"] { border-radius: 2px; padding: 0 1px; }
 #preview code { background: var(--code); padding: .15em .4em; border-radius: 4px;
   font: var(--code-size) var(--code-font); }
 #preview pre { background: var(--code); padding: 12px 16px; border-radius: 6px; overflow-x: auto; }

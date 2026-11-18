@@ -39,6 +39,8 @@ open(DOC, 'w', encoding='utf-8').write("# 拡張の表示\n\n本文に脚注を�
 > [!CAUTION]
 > 危険です。
 
+色: <span style="color:red">赤字</span> <span class="blue">青字</span> <span class="bg-yellow">黄背景</span> <span style="color:url(x)">不正</span>
+
 ```ruby:app.rb
 puts "hello"
 ```
@@ -89,6 +91,12 @@ def drive():
     check("文書が開いて、描かれる", wait("document.querySelector(%s) !== null" % json.dumps(q('.md-note'))), True)
     time.sleep(.8)
 
+    cs = "(() => { const r = document.querySelector(%s); const g = t => [...r.querySelectorAll('span')].find(e => e.textContent === t); const c = t => getComputedStyle(g(t)); return {red: c('赤字').color, blue: c('青字').color, body: getComputedStyle(r).color, bg: c('黄背景').backgroundColor, bad: g('不正').hasAttribute('style')}; })()" % json.dumps(ROOT)
+    col = js(cs)
+    check("文字の色: style の color が効く", col['red'], 'rgb(255, 0, 0)')
+    check("文字の色: class（blue）が効き、本文の色とは違う", [col['blue'] != col['body'], col['blue'].startswith('rgb(')], [True, True])
+    check("背景の色: class（bg-yellow）が効く", col['bg'] not in ('rgba(0, 0, 0, 0)', 'transparent'), True)
+    check("色ではない値（url など）は、style ごと取り除かれる", col['bad'], False)
     check("脚注: 本文に上付きの番号が付く", js("(() => { const a = document.querySelector(%s); return a ? [a.textContent, a.getAttribute('href')] : null; })()" % json.dumps(q('sup.footnote-ref a'))), ['1', '#fn1'])
     check("脚注: 文末に一覧が出て、中身が残っている", js("document.querySelector(%s).textContent.includes('脚注の本文です')" % json.dumps(q('.footnotes'))), True)
     js("document.getElementById('pscroll').scrollTop = 0")

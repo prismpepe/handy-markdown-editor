@@ -57,8 +57,21 @@ CELL_TAGS = {"th", "td"}
 TEXT_ALIGN_VALUES = {"left", "center", "right", "justify"}
 
 
+# 文字の色・背景の色（`<span style="color:red">`）。値は、色として確かなものだけ（名前・#16進・rgb()/hsl()）。
+# `url()` `expression()` `var()` などの関数や `!important` は通さない（かっこの中に、かっこを入れない）。
+COLOR_PROPS = {"color", "background-color"}
+NAMED_COLORS = frozenset("aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen transparent currentcolor".split())
+_HEX_COLOR = re.compile(r"#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})")
+_FUNC_COLOR = re.compile(r"(?:rgb|rgba|hsl|hsla)\([0-9a-z.%\s,/+-]{1,48}\)")
+
+
+def is_safe_color(val):
+    val = val.strip().lower()
+    return val in NAMED_COLORS or bool(_HEX_COLOR.fullmatch(val)) or bool(_FUNC_COLOR.fullmatch(val))
+
+
 def safe_style(value, tag=""):
-    """許可した宣言（改ページ、表のセルの text-align）だけを集めて返す。1つも無ければ None。"""
+    """許可した宣言（改ページ、表のセルの text-align、文字・背景の色）だけを集めて返す。1つも無ければ None。"""
     kept = []
     for decl in html.unescape(value).split(";"):
         name, sep, val = decl.partition(":")
@@ -69,6 +82,8 @@ def safe_style(value, tag=""):
             kept.append(f"{name}: {val}")
         elif name == "text-align" and tag in CELL_TAGS and val in TEXT_ALIGN_VALUES:
             kept.append(f"text-align: {val}")
+        elif name in COLOR_PROPS and is_safe_color(val):
+            kept.append(f"{name}: {val}")
     return "; ".join(kept) or None
 
 

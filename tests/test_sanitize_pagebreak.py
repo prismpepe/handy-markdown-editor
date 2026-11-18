@@ -23,12 +23,12 @@ def test_大文字や空白が混ざっても残る():
 
 
 def test_改ページ以外の宣言は落ちる():
-    out = sanitize('<div style="color:red; page-break-after: always; position:fixed"></div>')
+    out = sanitize('<div style="font-size:99px; page-break-after: always; position:fixed"></div>')
     assert out == '<div style="page-break-after: always"></div>'
 
 
 def test_改ページが無いstyleは属性ごと消える():
-    assert sanitize('<div style="color:red"></div>') == '<div></div>'
+    assert sanitize('<div style="font-size:99px"></div>') == '<div></div>'
 
 
 @pytest.mark.parametrize("style", [
@@ -62,5 +62,5 @@ def test_セル以外のtext_alignは落ちる():
 
 def test_text_alignの知らない値は落ちる():
     assert sanitize('<td style="text-align:url(javascript:x)">x</td>') == '<td>x</td>'
-    assert sanitize('<td style="text-align:start; color:red">x</td>') == '<td>x</td>'
+    assert sanitize('<td style="text-align:start; font-size:99px">x</td>') == '<td>x</td>'
 
