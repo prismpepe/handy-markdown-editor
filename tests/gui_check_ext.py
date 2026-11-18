@@ -97,6 +97,8 @@ def drive():
     check("文字の色: class（blue）が効き、本文の色とは違う", [col['blue'] != col['body'], col['blue'].startswith('rgb(')], [True, True])
     check("背景の色: class（bg-yellow）が効く", col['bg'] not in ('rgba(0, 0, 0, 0)', 'transparent'), True)
     check("色ではない値（url など）は、style ごと取り除かれる", col['bad'], False)
+    names = js("(() => { const r = document.querySelector(%s), base = getComputedStyle(r).color; const out = {}; for (const n of ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray']) { const t = document.createElement('span'), b = document.createElement('span'); t.className = n; b.className = 'bg-' + n; t.textContent = b.textContent = 'x'; r.appendChild(t); r.appendChild(b); out[n] = [getComputedStyle(t).color !== base, getComputedStyle(b).backgroundColor !== 'rgba(0, 0, 0, 0)']; t.remove(); b.remove(); } return out; })()" % json.dumps(ROOT))
+    check("色の名前は、文字・背景とも同じ 7 色（赤・橙・黄・緑・青・紫・灰）", {k: v for k, v in names.items() if v != [True, True]}, {})
     check("脚注: 本文に上付きの番号が付く", js("(() => { const a = document.querySelector(%s); return a ? [a.textContent, a.getAttribute('href')] : null; })()" % json.dumps(q('sup.footnote-ref a'))), ['1', '#fn1'])
     check("脚注: 文末に一覧が出て、中身が残っている", js("document.querySelector(%s).textContent.includes('脚注の本文です')" % json.dumps(q('.footnotes'))), True)
     js("document.getElementById('pscroll').scrollTop = 0")
