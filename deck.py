@@ -15,6 +15,8 @@ import json
 import mimetypes
 import os
 import re
+import shutil
+import tempfile
 import threading
 import time
 
@@ -260,6 +262,9 @@ class _Bridge:
         self._host.open_presenter()
 
 
+LOAD_TIMEOUT = 25                 # 発表の画面が動き出すまでに待つ秒数。これを超えたら、閉じて知らせる
+
+
 class DeckHost:
     def __init__(self, resource_path, user_dir_func=None, save_prefs=None):
         self._save_prefs = save_prefs                     # 発表中に変えた設定（レーザーの大きさ）を覚える関数（patch を受け取る）
@@ -269,6 +274,8 @@ class DeckHost:
         self._html = None
         self._opts = {}
         self._t0 = 0
+        self._tmpdir = None                               # 発表の画面を、ファイルとして置く一時フォルダー
+        self._error = None                                # 画面が読み込めなかったときの知らせ（1 度だけ渡す）
         self._lock = threading.RLock()
 
     # ---- 部品
@@ -299,9 +306,51 @@ class DeckHost:
             return None
         return infos[index] if isinstance(index, int) and 0 <= index < len(infos) else None
 
+    # ---- 画面の置き場。HTML を文字列のまま渡すと、WebView2 の上限（約 2MB）を超えたとき、ページが読み込まれず、
+    # 真っ黒なまま（Esc も効かない）になる。貼り付けた画像（base64）が大きいと、すぐ超える。そのため、一時フォルダーに
+    # ファイルとして書き、そのファイルを読み込ませる。
+    def _write_page(self, name, html):
+        if self._tmpdir is None:
+            self._tmpdir = tempfile.mkdtemp(prefix="handy_deck_")
+        path = os.path.join(self._tmpdir, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return path
+
+    def _cleanup(self):
+        with self._lock:
+            d, self._tmpdir = self._tmpdir, None
+        if d:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def take_error(self):
+        """画面が読み込めなかったという知らせ。あれば、1 度だけ返す。"""
+        with self._lock:
+            e, self._error = self._error, None
+        return e
+
+    def _watch_loaded(self, w, role):
+        """読み込みが終わらない（ページが動き出さない）画面は、閉じられなくなる。時間内に動かなければ、全部閉じて知らせる。"""
+        def run():
+            deadline = time.time() + LOAD_TIMEOUT
+            while time.time() < deadline:
+                if self._windows.get(role) is not w:
+                    return                                   # すでに閉じた
+                try:
+                    if w.evaluate_js("!!(window.Deck && window.Deck.state)"):
+                        return
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            if self._windows.get(role) is w:
+                with self._lock:
+                    self._error = "発表の画面が、時間内に読み込めませんでした。発表を閉じました。画像が大きすぎる場合は、小さくしてから、もう一度お試しください"
+                self.close()
+        threading.Thread(target=run, name="deck-watch-" + role, daemon=True).start()
+
     def _make(self, role, title, screen, fullscreen):
         html = self._html.replace('"__DECK_ROLE__"', json.dumps(role)).replace('"__DECK_T0__"', str(self._t0))       # 経過時間の起点は、2 つのウィンドウで同じ
-        kw = dict(html=html, js_api=_Bridge(self, role), background_color="#000000", text_select=False, zoomable=False)
+        kw = dict(url=self._write_page(role + ".html", html), js_api=_Bridge(self, role), background_color="#000000", text_select=False, zoomable=False)
         if screen is not None:
             kw["screen"] = screen
         if fullscreen:
@@ -314,6 +363,7 @@ class DeckHost:
         except Exception:
             pass
         self._windows[role] = w
+        self._watch_loaded(w, role)
         return w
 
     def open(self, html, opts):
@@ -354,8 +404,12 @@ class DeckHost:
             path += ".pdf"
         import printing
         w = None
+        tmpdir = tempfile.mkdtemp(prefix="handy_deck_pdf_")
+        page = os.path.join(tmpdir, "deck.html")
         try:
-            w = webview.create_window("PDF", html=html.replace('"__DECK_ROLE__"', '"standalone"'), x=-32000, y=-32000, width=1280, height=720, focus=False, background_color="#ffffff")       # 画面の外に出す（hidden にすると、ページが読み込まれない）
+            with open(page, "w", encoding="utf-8") as f:
+                f.write(html.replace('"__DECK_ROLE__"', '"standalone"'))       # 大きな画像でも読み込めるよう、ファイルとして渡す
+            w = webview.create_window("PDF", url=page, x=-32000, y=-32000, width=1280, height=720, focus=False, background_color="#ffffff")       # 画面の外に出す（hidden にすると、ページが読み込まれない）
             deadline = time.time() + 30
             ready = False
             while time.time() < deadline and not ready:
@@ -383,6 +437,7 @@ class DeckHost:
                     w.destroy()
                 except Exception:
                     pass
+            shutil.rmtree(tmpdir, ignore_errors=True)
         return {"error": None, "path": path, "pages": pages}
 
     def _relay(self, sender, state_json):
@@ -467,6 +522,8 @@ class DeckHost:
                 w.destroy()
             except Exception:
                 pass
+        if not self._windows:
+            self._cleanup()
 
     def close(self):
         with self._lock:
@@ -477,3 +534,4 @@ class DeckHost:
                 w.destroy()
             except Exception:
                 pass
+        self._cleanup()

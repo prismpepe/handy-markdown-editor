@@ -330,6 +330,9 @@ class Api:
     def deck_running(self):
         return self._deck.running()
 
+    def deck_take_error(self):
+        return self._deck.take_error()
+
     def deck_close(self):
         self._deck.close()
 

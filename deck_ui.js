@@ -154,6 +154,8 @@ async function deckWatchNow() {
   deckWatchBusy = true;
   try {
     const on = await api.deck_running();
+    const err = await api.deck_take_error();                                    // 発表の画面が読み込めなかったとき（画面は、本体の側で閉じ済み）
+    if (err) DECK_HOST.say(err);
     const b = document.getElementById('bDeck');
     if (b && b.disabled !== !!on) {
       b.disabled = !!on;

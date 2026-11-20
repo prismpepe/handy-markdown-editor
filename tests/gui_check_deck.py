@@ -512,6 +512,32 @@ def drive():
     api._deck.close(); time.sleep(1)
     check("閉じると、すべて閉じる", list(api._deck._windows), [])
 
+    # --- 大きな画像（貼り付けた画像は、base64 で文書に入る）を含む、約 3MB の画面。文字列のまま渡すと、WebView2 の上限（約 2MB）で、
+    #     ページが読み込まれず、真っ黒なまま Esc も効かなかった。ファイルとして渡して、読み込めること
+    big = html.replace('</body>', '<!--' + 'x' * 3_000_000 + '--></body>')
+    check("試験用の画面が、2MB を超えている", len(big) > 2_500_000, True)
+    rb = api.deck_open(big, {'screen': 0, 'presenter': True, 'fullscreen': False, 'title': '大きい'})
+    wsb = api._deck._windows
+    okb = wait("!!(window.Deck && window.Deck.state)", 25, wsb['audience']) and wait("!!(window.Deck && window.Deck.state)", 25, wsb['presenter'])
+    check("2MB を超える画面でも、聴衆の画面と発表者ビューが動き出す", [rb['error'], okb], [None, True])
+    tmpdir = api._deck._tmpdir
+    check("画面は、一時フォルダーのファイルとして置かれている", [bool(tmpdir) and os.path.isdir(tmpdir)], [True])
+    key(wsb['audience'], 'Escape'); time.sleep(1.5)
+    check("Esc で閉じ、一時フォルダーも片づく", [list(api._deck._windows), not os.path.exists(tmpdir)], [[], True])
+    rpb = api.deck_export_pdf(big, 'slides', os.path.join(tmp, 'big.pdf'))
+    check("2MB を超える画面でも、PDF にできる", [rpb['error'], rpb['pages']], [None, 7])
+    import deck as _deckmod
+    _old_timeout = _deckmod.LOAD_TIMEOUT
+    _deckmod.LOAD_TIMEOUT = 3
+    api._deck.take_error()
+    _orig_take, seen = api._deck.take_error, []              # 本体の画面が、知らせを取りに来る（その知らせを、横取りせずに記録する）
+    api._deck.take_error = lambda: (lambda e: (seen.append(e) if e else None, e)[1])(_orig_take())
+    api.deck_open('<html><body>"__DECK_ROLE__"</body></html>', {'screen': 0, 'presenter': False, 'fullscreen': False, 'title': '動かない'})
+    time.sleep(7)
+    api._deck.take_error = _orig_take
+    check("動き出さない画面は、時間内に閉じ、知らせを返す（閉じられない真っ黒な窓を残さない）", [list(api._deck._windows), len(seen) == 1 and '読み込めませんでした' in seen[0]], [[], True])
+    _deckmod.LOAD_TIMEOUT = _old_timeout
+
     # --- PDF
     out_slides, out_hand = os.path.join(tmp, 's.pdf'), os.path.join(tmp, 'h.pdf')
     rs = api.deck_export_pdf(html, 'slides', out_slides)
