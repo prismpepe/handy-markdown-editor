@@ -280,6 +280,7 @@ class Api:
         self._persist_location = not (start_path and os.path.isfile(start_path))
         self._keeper = None
         self._draft_lock = threading.Lock()
+        self._draft_keys = set()                             # この起動（ウィンドウ）が書いた下書き。保存済みの内容に戻して終えるとき、消す
         self._claims = {}                                   # このウィンドウが開いている印を置いたファイル: 正規化したパス → パス
         self._slot = "untitled" + format(int(time.time() * 1000), "x")      # この起動の「無題」の下書きの名前
 
@@ -949,11 +950,34 @@ class Api:
                                         slot=self._slot)
         except OSError as e:
             return {"ok": False, "error": str(e)}
+        self._draft_keys.add(key)
         return {"ok": True, "key": key}
 
     def list_drafts(self):
         """前回の残り（書いたウィンドウが、もう動いていない下書き）。別のウィンドウで編集中の下書きは、出さない。"""
-        return drafts.list_drafts(drafts_root(), skip_live=True)
+        out = []
+        for d in drafts.list_drafts(drafts_root(), skip_live=True):
+            if self._same_as_file(d):                     # 復元しても、いまのファイルと同じ（取り消しで戻したのに、残っていたもの）: 出さずに、消す
+                with self._draft_lock:
+                    drafts.delete_draft(drafts_root(), d["key"])
+                continue
+            out.append(d)
+        return out
+
+    @staticmethod
+    def _same_as_file(d):
+        """下書きの内容が、元のファイルの、いまの内容と同じか（読めなければ、違うものとして扱う＝残す）。"""
+        path = d.get("path")
+        if not path or not d.get("exists"):
+            return False
+        try:
+            body = drafts.read_draft(drafts_root(), d["key"])
+            doc = filemodel.read_document(path)
+            if not body or doc.get("readonly"):
+                return False
+            return body["text"].replace("\r\n", "\n").replace("\r", "\n") == doc["text"]
+        except (OSError, KeyError, ValueError):
+            return False
 
     def get_draft(self, key):
         return drafts.read_draft(drafts_root(), key)
@@ -1232,6 +1256,14 @@ class Api:
     def set_dirty(self, dirty):
         self._dirty = bool(dirty)
 
+    def _drop_my_drafts(self):
+        """この起動が書いた下書きを消す。保存せずに終えた（未保存の変更がある）ときは、呼ばない。
+        前回の残り（別の起動が書いたもの）は、触らない（キーを覚えているのは、この起動が書いたものだけ）。"""
+        with self._draft_lock:
+            keys, self._draft_keys = list(self._draft_keys), set()
+            for k in keys:
+                drafts.delete_draft(drafts_root(), k)
+
     def close_now(self):
         """画面で保存・破棄が済んだあとに閉じる。"""
         self._closing = True
@@ -1242,6 +1274,7 @@ class Api:
     def on_closing(self):
         """未保存があれば閉じずに、画面へ確認を出させる（False で閉じるのを止める）。"""
         if self._closing or not self._dirty:
+            self._drop_my_drafts()           # 保存済みの内容と同じ（取り消しで戻した場合も）なら、この起動が書いた下書きは、もう要らない
             applog.event("window_closing", dirty=bool(self._dirty))
             self.release_all_claims()
             if self._keeper:

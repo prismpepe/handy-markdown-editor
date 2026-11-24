@@ -207,3 +207,47 @@ def test_old_drafts_without_owner_are_offered(tmp_path):
     root = str(tmp_path)
     (tmp_path / "x.json").write_text(json.dumps({"path": None, "text": "旧い版の下書き", "saved_at": "2026-01-01T00:00:00"}), encoding="utf-8")
     assert [d["preview"] for d in D.list_drafts(root, skip_live=True)] == ["旧い版の下書き"]
+
+
+# ---- 取り消しで保存済みの内容に戻して終えたとき、下書きが残らない（次の起動で復元の確認が出ない）
+def test_変更して_取り消しで元に戻して終えると_この起動の下書きは消える(api):
+    r = api.save_draft("C:/docs/a.md", "編集した内容")                      # 自動保存が、編集中の内容を書いた
+    assert r["ok"]
+    api.set_dirty(False)                                                    # 取り消しで、保存済みの内容に戻った
+    assert api.on_closing() is True
+    assert D.read_draft(mdeditor.drafts_root(), r["key"]) is None       # 下書きは、消えている
+
+
+def test_未保存の変更があるまま終えると_下書きは残る(api):
+    r = api.save_draft("C:/docs/a.md", "編集した内容")
+    api.set_dirty(True)
+    api._closing = False
+    # 画面へ確認を出させる経路（別スレッドで JS を呼ぶ）は、この試験では動かさない
+    api._window = type("W", (), {"evaluate_js": staticmethod(lambda code: None)})()
+    assert api.on_closing() is False
+    assert D.read_draft(mdeditor.drafts_root(), r["key"]) is not None
+
+
+def test_前回の残りの下書きは_この起動が終わっても_消さない(api, tmp_path):
+    old = D.save_draft(mdeditor.drafts_root(), "C:/docs/other.md", "前回の残り", "UTF-8", "CRLF", slot="x")   # 別の起動が書いたもの
+    api.set_dirty(False)
+    assert api.on_closing() is True
+    assert D.read_draft(mdeditor.drafts_root(), old) is not None
+
+
+def test_内容が_いまのファイルと同じ下書きは_復元の候補に出さず_消す(api, tmp_path):
+    f = tmp_path / "doc.md"
+    f.write_bytes("同じ内容\r\n二行目\r\n".encode("utf-8"))
+    same = D.save_draft(mdeditor.drafts_root(), str(f), "同じ内容\n二行目\n", "UTF-8", "CRLF", slot="x1", owner=DEAD)
+    g = tmp_path / "other.md"
+    g.write_bytes("ファイルの内容".encode("utf-8"))
+    diff = D.save_draft(mdeditor.drafts_root(), str(g), "編集した内容", "UTF-8", "CRLF", slot="x2", owner=DEAD)
+    keys = [d["key"] for d in api.list_drafts()]
+    assert keys == [diff]                                                   # 同じ内容の下書きは出ない
+    assert D.read_draft(mdeditor.drafts_root(), same) is None               # 消えている
+    assert D.read_draft(mdeditor.drafts_root(), diff) is not None           # 違う内容の下書きは、残る
+
+
+def test_元のファイルが無い_読めない場合は_下書きを残す(api, tmp_path):
+    k = D.save_draft(mdeditor.drafts_root(), str(tmp_path / "gone.md"), "消えたファイルの下書き", "UTF-8", "CRLF", slot="x3", owner=DEAD)
+    assert [d["key"] for d in api.list_drafts()] == [k]
