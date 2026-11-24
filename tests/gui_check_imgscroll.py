@@ -133,7 +133,7 @@ def drive():
     js("document.getElementById('pscroll').scrollTop = 0; cm.scrollTo(0, 0); null")
     js("(() => { for (const i of document.querySelectorAll('#preview img')) { i.dataset.s = i.src; i.removeAttribute('src'); } })()")      # 画像が、まだ無い状態にする
     time.sleep(.3)
-    js("cm.scrollTo(0, cm.heightAtLine(150, 'local')); null")
+    js("cm.scrollTo(0, cm.heightAtLine(90, 'local')); null")
     time.sleep(.5)
     js("(() => { for (const i of document.querySelectorAll('#preview img')) { i.src = i.dataset.s + '&r=' + Math.random(); } })()")       # 画像が、遅れて届く
     wait(ALL_LOADED, 60); time.sleep(1.5)
@@ -166,6 +166,12 @@ def drive():
         last = st
     check("編集欄を 8px ずつスクロールしたとき、プレビューの動きが、1 回で 60px を超えない（行の番号だけで合わせると、画像の行で、100px 以上飛ぶ）", worst <= 60, True)
     print('    1 回の最大の動き', worst, 'px', flush=True)
+
+    # --- 5. 編集欄を最下端までスクロールしたら、プレビューも最下端になる（大きな要素が末尾にあっても、途中で止まらない）
+    js("cm.scrollTo(0, 1e9); null"); time.sleep(.6)
+    gap = js("(() => { const p = document.getElementById('pscroll'); return Math.round(p.scrollHeight - p.clientHeight - p.scrollTop); })()")
+    check("編集欄が最下端のとき、プレビューも最下端（残り 5px 以内）", gap <= 5, True)
+    print('    プレビューの残り', gap, 'px', flush=True)
 
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False

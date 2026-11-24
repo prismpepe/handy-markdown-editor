@@ -1021,8 +1021,16 @@ function fracInLine(line, localY) {
 }
 function syncFromTop() {                       // 編集側のスクロールにプレビューを合わせる
   if (prefs.view === 'edit') return;
-  const y = cm.getScrollInfo().top, top = cm.lineAtHeight(y, 'local');
-  $('pscroll').scrollTop = previewYForLine(top + fracInLine(top, y));
+  const si = cm.getScrollInfo(), y = si.top, top = cm.lineAtHeight(y, 'local'), pv = $('pscroll');
+  let t = previewYForLine(top + fracInLine(top, y));
+  // 編集欄の最後の 1 画面分では、先頭行の対応だけだと、プレビューが末尾まで届かない（最後の要素が上端までしか来ない）。
+  // 最下端でプレビューも最下端になるよう、終わりに向けて、プレビューの末尾へなめらかに寄せる
+  const emax = si.height - si.clientHeight, pmax = pv.scrollHeight - pv.clientHeight;
+  if (emax > 0 && pmax > 0 && si.clientHeight > 0) {
+    const w = Math.min(1, Math.max(0, (y - (emax - si.clientHeight * 0.35)) / (si.clientHeight * 0.35)));
+    if (w > 0) t = Math.max(t, t * (1 - w) + pmax * w);
+  }
+  pv.scrollTop = t;
 }
 function previewToCursor() {                   // 打鍵中は、書いている場所をプレビューに出す
   const pv = $('pscroll'), c = cm.getCursor();
