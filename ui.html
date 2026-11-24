@@ -824,17 +824,21 @@ function schedulePreview(delay = 200) { clearTimeout(previewTimer); previewTimer
 async function updatePreview(resetScroll) {
   const seq = ++renderSeq;
   const text = cm.getValue();
-  const pv = $('pscroll'), keep = resetScroll ? 0 : pv.scrollTop;
+  const pv = $('pscroll');
   const html = await api.render(text, doc.path);
   if (seq !== renderSeq) return;                 // もっと新しい入力がある
+  const keep = resetScroll ? 0 : pv.scrollTop;   // 描画を待つ間に、編集欄に合わせて動いた位置を使う（待つ前の位置に戻さない）
   $('preview').innerHTML = html || '<p class="empty">（空の文書です）</p>';
   applyCachedDiagrams();
   applyCachedVega();
   const mathDone = renderMath(seq);
   pv.scrollTop = keep;
+  const followed = followCursor;
   if (resetScroll) { followCursor = false; pv.scrollTop = 0; }
   else if (followCursor) { followCursor = false; previewToCursor(); }
   previewSettled = Promise.all([mathDone, renderDiagrams(seq), renderVega(seq)]).catch(() => {});      // HTML の書き出しが、描画の完了を待つために使う
+  // 図・数式が描かれると、プレビューの高さが変わる。編集欄のスクロールに合わせていたなら、描き終えたあとで合わせ直す
+  if (!resetScroll) previewSettled.then(() => { if (seq === renderSeq && edScrollAt > pvUserAt && !followed) syncFromTop(); });
 }
 
 // 図の記憶は「記述＋置き場所の幅」で引く。ガントは幅で全体の大きさを決めるため、幅が変われば描き直す
@@ -1019,6 +1023,7 @@ function fracInLine(line, localY) {
   const a = cm.heightAtLine(line, 'local'), b = cm.heightAtLine(line + 1, 'local');
   return b > a ? Math.min(0.999, Math.max(0, (localY - a) / (b - a))) : 0;
 }
+let edScrollAt = 0, pvUserAt = 0;
 function syncFromTop() {                       // 編集側のスクロールにプレビューを合わせる
   if (prefs.view === 'edit') return;
   const si = cm.getScrollInfo(), y = si.top, top = cm.lineAtHeight(y, 'local'), pv = $('pscroll');
@@ -3118,7 +3123,8 @@ document.addEventListener('DOMContentLoaded', () => {
   cm.on('change', () => { followCursor = true; schedulePreview(); updateDirty(); scheduleCounters(); lintEdited(); });
   cm.on('gutterClick', (c, line, gutter) => { if (gutter === 'lint-gutter') lintFromGutter(line); });
   cm.on('cursorActivity', scheduleCounters);
-  cm.on('scroll', syncFromTop);
+  cm.on('scroll', () => { edScrollAt = Date.now(); syncFromTop(); });
+  ['wheel', 'mousedown', 'touchstart'].forEach(t => $('pscroll').addEventListener(t, () => { pvUserAt = Date.now(); }, { capture: true, passive: true }));
   finder = MdFind.create(cm, { bar: $('find'), rrow: $('rrow'), q: $('fq'), r: $('fr'), cs: $('fCase'), re: $('fRegex'), count: $('fCount') });
   cm.getWrapperElement().addEventListener('contextmenu', editorMenu);
   $('pscroll').addEventListener('contextmenu', previewMenu);

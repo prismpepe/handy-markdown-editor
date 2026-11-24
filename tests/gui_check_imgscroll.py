@@ -173,6 +173,15 @@ def drive():
     check("編集欄が最下端のとき、プレビューも最下端（残り 5px 以内）", gap <= 5, True)
     print('    プレビューの残り', gap, 'px', flush=True)
 
+    # --- 6. 再描画の途中で、編集欄を最上端へ戻しても、描画のあとで、プレビューが古い位置（最下端）へ戻らない
+    js("cm.scrollTo(0, 1e9); null"); time.sleep(.6)
+    js("updatePreview(false); null")                     # 描画を始めたところで、
+    js("cm.scrollTo(0, 0); null")                        # 編集欄を、最上端へ
+    time.sleep(2.0)
+    top = js("document.getElementById('pscroll').scrollTop")
+    check("再描画の途中で編集欄を最上端へ戻したら、プレビューも上端（60px 以内）", top <= 60, True)
+    print('    プレビューの位置', top, flush=True)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True
