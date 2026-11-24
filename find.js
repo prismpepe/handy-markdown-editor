@@ -32,6 +32,23 @@ const MdFind = (() => {
     return repl.replace(/\$(\$|&|\d{1,2})/g, (s, d) => d === '$' ? '$' : d === '&' ? m[0] : (m[+d] === undefined ? '' : m[+d]));
   }
 
+  // 文字列に対する、検索と置換（画面に依存しない）。置換セットが使う。長さ 0 の一致は、無かったことにする（create の replaceAll と同じ）。
+  const REPLACE_CAP = 200000;
+  function replaceText(text, query, repl, caseSensitive, useRegex) {
+    const b = build(query, caseSensitive, useRegex);
+    if (b.error) return { text, count: 0, error: b.error };
+    if (!b.re) return { text, count: 0 };
+    const re = b.re; re.lastIndex = 0;
+    let out = '', last = 0, n = 0, m;
+    while ((m = re.exec(text))) {
+      if (m[0].length === 0) { re.lastIndex++; continue; }
+      out += text.slice(last, m.index) + expand(repl, m, useRegex);
+      last = m.index + m[0].length;
+      if (++n >= REPLACE_CAP) return { text, count: 0, error: '一致が多すぎます（' + REPLACE_CAP + ' 件以上）' };
+    }
+    return { text: out + text.slice(last), count: n };
+  }
+
   function create(cm, ui) {
     let overlay = null, list = [], timer = null, lastError = null;
 
@@ -153,5 +170,5 @@ const MdFind = (() => {
     return { open, close, isOpen, step, replaceOne, replaceAll, refresh, count: () => list.length };
   }
 
-  return { create, build, matchesOf, expand };
+  return { create, build, matchesOf, expand, replaceText };
 })();

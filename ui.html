@@ -295,6 +295,21 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 /* 自動保存（下書き）: 状態表示欄のボタン、保存の設定、復元のダイアログ */
 #autoBtn { font-size: 12px; padding: 0 8px; border: 1px solid transparent; background: none; color: var(--fg); cursor: pointer; border-radius: 4px; }
 #autoBtn:hover { border-color: var(--accent); } #autoBtn .off { color: var(--muted); }
+#rsveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+#rsveil[hidden] { display: none; }
+#rsdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; width: min(900px, 96vw); max-height: 92vh; overflow: auto; font: 14px/1.5 "Yu Gothic UI", "Segoe UI", sans-serif; }
+#rsdlg h3 { margin: 0 0 6px; } #rsdlg .hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+#rsdlg .rsbody { display: grid; grid-template-columns: 240px 1fr; gap: 12px; min-height: 260px; }
+#rsList { width: 100%; height: 230px; font: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+#rsdlg .rsbtn { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+#rsdlg .rsname { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; } #rsdlg .rsname input { flex: 1; font: inherit; padding: 3px 6px; }
+#rsSteps { display: grid; gap: 4px; max-height: 40vh; overflow: auto; }
+#rsSteps .rss { display: grid; grid-template-columns: 1.6em 1fr 1fr auto auto auto; gap: 4px; align-items: center; }
+#rsSteps .rss input[type=text] { font: 13px Consolas, monospace; padding: 2px 5px; min-width: 0; }
+#rsSteps .rss label { font-size: 12px; white-space: nowrap; } #rsSteps .rss .n { color: var(--muted); text-align: right; }
+#rsSteps .rss button { padding: 0 6px; }
+#rsdlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
+#rsMsg { font-size: 12px; color: var(--muted); min-height: 1.4em; } #rsMsg.bad { color: var(--danger); }
 #sveil, #rveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
 #sveil[hidden], #rveil[hidden] { display: none; }
 #sdlg, #rdlg { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
@@ -524,6 +539,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
             <input id="fr" type="text" placeholder="置換後の文字列" spellcheck="false">
             <button id="fRep" title="選んでいる一致を置換して、次へ進む (Enter)">置換</button>
             <button id="fAll" title="すべて置換（1回の取り消しで戻せます）">すべて置換</button>
+            <button id="rSets" title="よく使う置換に名前を付けて保存し、1回の操作で順に実行する">置換セット…</button>
             <span class="hint">正規表現のときは $1 や $& が使えます</span>
           </div>
         </div>
@@ -638,6 +654,25 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
     <div class="srow"><label><input id="sLog" type="checkbox"> 動作の記録（診断ログ）を残す</label> <button id="sLogOpen" type="button">記録の場所を開く</button></div>
     <div class="srow"><span id="sMsg" class="hint"></span></div>
     <div class="btns"><button id="sClose" class="primary">閉じる</button></div>
+  </div>
+</div>
+<div id="rsveil" hidden>
+  <div id="rsdlg" role="dialog" aria-label="置換セット">
+    <h3>置換セット</h3>
+    <p class="hint">よく使う置換に名前を付けて保存し、1回の操作で、順に実行します。手順は、上から順に、前の手順の結果へ当てます。<b>標準のセットは、コピーして編集</b>できます。実行は、1回の Ctrl+Z で元に戻せます。</p>
+    <div class="rsbody">
+      <div>
+        <select id="rsList" size="10" aria-label="置換セットの一覧"></select>
+        <div class="rsbtn"><button id="rsNew">新規</button><button id="rsCopy">コピー</button><button id="rsDel">削除</button></div>
+      </div>
+      <div>
+        <div class="rsname"><label for="rsName">名前</label><input id="rsName" type="text" maxlength="60"></div>
+        <div id="rsSteps"></div>
+        <div class="rsbtn"><button id="rsAdd">手順を追加</button><button id="rsFromFind" title="検索・置換の欄にある、検索する文字列・置換後の文字列・設定を、手順として足す">検索欄の内容を手順に追加</button></div>
+        <div id="rsMsg"></div>
+      </div>
+    </div>
+    <div class="btns"><button id="rsRunSel" title="選んでいる文字だけに、実行する">選択範囲に実行</button><button id="rsRunAll" class="primary" title="文書全体に実行する">文書全体に実行</button><button id="rsClose">閉じる</button></div>
   </div>
 </div>
 <div id="rveil" hidden>
@@ -1602,7 +1637,7 @@ document.addEventListener('dragover', e => e.preventDefault());
 
 // ウィンドウへのドロップ。Python（filedrop.py）が、開くと決まった対象（Markdown ファイル1つ／フォルダー1つ）だけを渡してくる
 async function handleDrop(kind, path) {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen() || safetyDlgOpen() || restoreDlgOpen() || fixDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen() || safetyDlgOpen() || restoreDlgOpen() || fixDlgOpen() || replaceSetDlgOpen()) return;
   if (kind === 'folder') await switchFolder(path); else await openPath(path);
 }
 
@@ -1839,6 +1874,15 @@ async function tableEdit(op) {
   if (!r.ok) { status(r.message, true, 5000); return; }
   applyTableResult(r);
 }
+async function tableToHtml() {
+  if (doc.readonly) return;
+  const c = cm.getCursor(), gen = cm.changeGeneration();
+  const r = await api.table_to_html(cm.getValue(), c.line, c.ch);
+  if (gen !== cm.changeGeneration()) { status('操作の間に文書が変わったので、やめました。もう一度、操作してください', true, 5000); return; }
+  if (!r.ok) { status(r.message, true, 5000); return; }
+  applyTableResult(r);
+  status('表を HTML の表に変換しました（Ctrl+Z で元に戻せます）', false, 4000);
+}
 function tableTab(forward) {
   tableQueue = tableQueue.then(async () => {
     const c = cm.getCursor(), gen = cm.changeGeneration();
@@ -1863,8 +1907,140 @@ function tableMenuItems(info) {
     it('配置: 左寄せ', 'align_left'), it('配置: 中央', 'align_center'), it('配置: 右寄せ', 'align_right'), it('配置: 指定なし', 'align_none'),
     it('行を上に追加', 'add_row_above', head), it('行を下に追加', 'add_row_below'),
     it('行を削除', 'del_row', head),
+    { label: '表を HTML の表に変換', disabled: ro, run: tableToHtml },
     '-',
   ];
+}
+
+// ============================================================ 置換セット（よく使う置換に名前を付けて保存し、順に実行する。replacesets.py）
+const rs = { builtin: [], user: [], cur: null, saveTimer: null };
+const replaceSetDlgOpen = () => !$('rsveil').hidden;
+const rsAll = () => rs.builtin.concat(rs.user);
+const rsFind = id => rsAll().find(s => s.id === id) || null;
+function rsSay(t, bad) { $('rsMsg').textContent = t || ''; $('rsMsg').classList.toggle('bad', !!bad); }
+async function rsLoad() {
+  const r = await api.replace_sets_get();
+  rs.builtin = r.builtin || []; rs.user = r.user || [];
+}
+function rsRenderList(selectId) {
+  const sel = $('rsList'); sel.textContent = '';
+  const add = (s, mark) => { const o = document.createElement('option'); o.value = s.id; o.textContent = (mark ? '［標準］' : '') + s.name; sel.appendChild(o); };
+  rs.builtin.forEach(s => add(s, true)); rs.user.forEach(s => add(s, false));
+  const want = selectId && rsFind(selectId) ? selectId : (rsAll()[0] ? rsAll()[0].id : '');
+  sel.value = want; rsShow(want);
+}
+function rsShow(id) {
+  rs.cur = rsFind(id);
+  const s = rs.cur, ro = !s || s.builtin || doc.readonly;
+  $('rsName').value = s ? s.name : ''; $('rsName').disabled = ro;
+  $('rsDel').disabled = !s || s.builtin; $('rsCopy').disabled = !s;
+  $('rsAdd').disabled = ro; $('rsFromFind').disabled = ro;
+  $('rsRunAll').disabled = !s || doc.readonly || !s.steps.length;
+  $('rsRunSel').disabled = !s || doc.readonly || !s.steps.length || !cm.somethingSelected();
+  const box = $('rsSteps'); box.textContent = '';
+  (s ? s.steps : []).forEach((st, i) => {
+    const row = document.createElement('div'); row.className = 'rss';
+    const mk = (tag, props) => Object.assign(document.createElement(tag), props);
+    const f = mk('input', { type: 'text', value: st.find, placeholder: '検索する文字列', spellcheck: false, disabled: ro });
+    const r = mk('input', { type: 'text', value: st.replace, placeholder: '置換後の文字列', spellcheck: false, disabled: ro });
+    const re = mk('input', { type: 'checkbox', checked: st.regex, disabled: ro }), cs = mk('input', { type: 'checkbox', checked: st.case, disabled: ro });
+    const lre = mk('label'); lre.append(re, ' 正規表現'); const lcs = mk('label'); lcs.append(cs, ' 大小区別');
+    const up = mk('button', { textContent: '↑', title: '1つ上へ', disabled: ro || i === 0 }), dn = mk('button', { textContent: '↓', title: '1つ下へ', disabled: ro || i === s.steps.length - 1 });
+    const del = mk('button', { textContent: '✕', title: 'この手順を削除', disabled: ro });
+    row.append(mk('span', { className: 'n', textContent: String(i + 1) }), f, r, lre, lcs);
+    const ops = document.createElement('span'); ops.append(up, dn, del); row.append(ops);
+    f.oninput = () => { st.find = f.value; rsChanged(); }; r.oninput = () => { st.replace = r.value; rsChanged(); };
+    re.onchange = () => { st.regex = re.checked; rsChanged(); }; cs.onchange = () => { st.case = cs.checked; rsChanged(); };
+    up.onclick = () => { s.steps.splice(i - 1, 0, s.steps.splice(i, 1)[0]); rsChanged(); rsShow(s.id); };
+    dn.onclick = () => { s.steps.splice(i + 1, 0, s.steps.splice(i, 1)[0]); rsChanged(); rsShow(s.id); };
+    del.onclick = () => { s.steps.splice(i, 1); rsChanged(); rsShow(s.id); };
+    box.appendChild(row);
+  });
+  rsSay(s && s.builtin ? '標準のセットです（編集はできません。「コピー」で、自分のセットにして編集できます）' : '');
+}
+function rsChanged() {                                    // 利用者のセットを、少し待ってから保存する（入力のたびには書かない）
+  clearTimeout(rs.saveTimer);
+  $('rsRunAll').disabled = !rs.cur || doc.readonly || !rs.cur.steps.length;
+  $('rsRunSel').disabled = $('rsRunAll').disabled || !cm.somethingSelected();
+  rs.saveTimer = setTimeout(rsSave, 500);
+}
+async function rsSave() {
+  clearTimeout(rs.saveTimer);
+  const r = await api.replace_sets_save(rs.user);
+  if (!r.ok) { rsSay(r.message, true); return false; }
+  return true;
+}
+function rsNewId() { return 'u-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+async function openReplaceSetDlg() {
+  await rsLoad();
+  rsRenderList(rs.cur ? rs.cur.id : '');
+  $('rsveil').hidden = false; $('rsList').focus();
+}
+async function closeReplaceSetDlg() { await rsSave(); $('rsveil').hidden = true; cm.focus(); }
+
+// 手順を、文字列へ順に当てる。正規表現に誤りがあれば、1つも当てずに、理由を返す
+function rsApply(steps, text) {
+  for (let i = 0; i < steps.length; i++) {
+    const b = MdFind.build(steps[i].find, steps[i].case, steps[i].regex);
+    if (b.error) return { error: `手順 ${i + 1}: 正規表現が正しくありません（${b.error}）` };
+  }
+  const counts = []; let out = text;
+  for (const st of steps) {
+    if (!st.find) { counts.push(0); continue; }
+    const r = MdFind.replaceText(out, st.find, st.replace, st.case, st.regex);
+    if (r.error) return { error: r.error };
+    out = r.text; counts.push(r.count);
+  }
+  return { text: out, counts };
+}
+async function runReplaceSet(scope) {
+  const s = rs.cur; if (!s || doc.readonly) return;
+  if (!s.builtin) await rsSave();
+  const sel = scope === 'sel';
+  if (sel && !cm.somethingSelected()) { rsSay('文字を選んでから、実行してください', true); return; }
+  const src = sel ? cm.getSelection() : cm.getValue();
+  const r = rsApply(s.steps, src);
+  if (r.error) { rsSay(r.error, true); return; }
+  const total = r.counts.reduce((a, b) => a + b, 0);
+  const detail = r.counts.map((n, i) => `手順${i + 1}: ${n}件`).join('、');
+  if (!total) { rsSay(`${sel ? '選択範囲' : '文書全体'}に、一致するものはありませんでした（${detail}）`); return; }
+  const top = cm.getScrollInfo(), cur = cm.getCursor();
+  cm.operation(() => {                                          // 1回の取り消しで戻る
+    if (sel) cm.replaceSelection(r.text, 'around');
+    else { cm.replaceRange(r.text, { line: 0, ch: 0 }, cm.posFromIndex(src.length)); cm.setCursor(cur); cm.scrollTo(top.left, top.top); }
+  });
+  rsSay(`${sel ? '選択範囲' : '文書全体'}で ${total} 件を置換しました（${detail}）。元に戻すには、閉じて Ctrl+Z`);
+  status(`置換セット「${s.name}」: ${total} 件を置換しました`, false, 4000);
+  $('rsRunSel').disabled = !cm.somethingSelected();
+}
+function initReplaceSets() {
+  $('rsList').onchange = () => rsShow($('rsList').value);
+  $('rsClose').onclick = closeReplaceSetDlg;
+  $('rsveil').addEventListener('mousedown', e => { if (e.target === $('rsveil')) closeReplaceSetDlg(); });
+  $('rsName').oninput = () => { if (rs.cur && !rs.cur.builtin) { rs.cur.name = $('rsName').value; const o = $('rsList').selectedOptions[0]; if (o) o.textContent = rs.cur.name || '（名前なし）'; rsChanged(); } };
+  $('rsNew').onclick = () => {
+    const s = { id: rsNewId(), name: '新しい置換セット', builtin: false, steps: [{ find: '', replace: '', regex: false, case: false }] };
+    rs.user.push(s); rsRenderList(s.id); rsChanged(); $('rsName').focus(); $('rsName').select();
+  };
+  $('rsCopy').onclick = () => {
+    const c = rs.cur; if (!c) return;
+    const s = { id: rsNewId(), name: c.name.replace(/^\s+|\s+$/g, '') + '（コピー）', builtin: false, steps: c.steps.map(x => ({ ...x })) };
+    rs.user.push(s); rsRenderList(s.id); rsChanged();
+  };
+  $('rsDel').onclick = async () => {
+    const c = rs.cur; if (!c || c.builtin) return;
+    if (await askOver($('rsveil'), '置換セットを削除', `「${c.name}」を削除します。元に戻せません。`, [{ label: '削除' }, { label: 'やめる', primary: true }]) !== 0) return;
+    rs.user = rs.user.filter(x => x.id !== c.id); rs.cur = null; await rsSave(); rsRenderList('');
+  };
+  $('rsAdd').onclick = () => { if (!rs.cur || rs.cur.builtin) return; rs.cur.steps.push({ find: '', replace: '', regex: false, case: false }); rsChanged(); rsShow(rs.cur.id); };
+  $('rsFromFind').onclick = () => {
+    if (!rs.cur || rs.cur.builtin) return;
+    const q = $('fq').value; if (!q) { rsSay('検索・置換の欄に、検索する文字列がありません', true); return; }
+    rs.cur.steps.push({ find: q, replace: $('fr').value, regex: $('fRegex').checked, case: $('fCase').checked }); rsChanged(); rsShow(rs.cur.id);
+  };
+  $('rsRunAll').onclick = () => runReplaceSet('all');
+  $('rsRunSel').onclick = () => runReplaceSet('sel');
+  $('rSets').onclick = () => openReplaceSetDlg();
 }
 
 // ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
@@ -1944,6 +2120,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && tableDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTableDlg(); }
   if (e.key === 'Escape' && tmplDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeTemplateDlg(); }
   if (e.key === 'Escape' && lintDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeLintDlg(); }
+  if (e.key === 'Escape' && replaceSetDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeReplaceSetDlg(); }
   if (e.key === 'Escape' && safetyDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeSafetyDlg(); }
   if (e.key === 'Escape' && restoreDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeRestoreDlg(); }
   if (e.key === 'Escape' && fixDlgOpen()) { e.preventDefault(); e.stopPropagation(); closeFixDlg(); }
@@ -2919,6 +3096,7 @@ $('fNext').onclick = () => finder.step(1);
 $('fPrev').onclick = () => finder.step(-1);
 $('fRep').onclick = () => finder.replaceOne();
 $('fAll').onclick = () => finder.replaceAll();
+initReplaceSets();
 $('fClose').onclick = () => finder.close();
 $('find').addEventListener('keydown', e => {
   if (e.key === 'Escape') { e.preventDefault(); finder.close(); }
@@ -3003,7 +3181,7 @@ window.addEventListener('resize', () => { cm && cm.refresh(); });
 window.addEventListener('focus', () => { syncList(); checkExternal(); });
 
 document.addEventListener('keydown', e => {
-  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen() || safetyDlgOpen() || restoreDlgOpen() || fixDlgOpen()) return;
+  if ($('veil').classList.contains('show') || MdPrint.isOpen() || fontDlgOpen() || tableDlgOpen() || tmplDlgOpen() || lintDlgOpen() || safetyDlgOpen() || restoreDlgOpen() || fixDlgOpen() || replaceSetDlgOpen()) return;
   const k = e.key.toLowerCase(), c = e.ctrlKey;
   const inEditor = cm && cm.hasFocus();
   if (e.key === 'Escape') hideCtx();

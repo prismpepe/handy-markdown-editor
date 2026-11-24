@@ -19,6 +19,7 @@ import re
 import sys
 import time
 import threading
+from html import escape as html_escape
 import webbrowser
 
 import applog
@@ -48,6 +49,7 @@ import printing
 import shellreg
 import recycle
 import settingsdir
+import replacesets
 import snippets
 from sanitize import sanitize
 
@@ -650,6 +652,34 @@ class Api:
         if not self._table_args(text, line, ch):
             return {"ok": False, "message": "表を読めません"}
         return tableedit.edit(text, line, ch, op)
+
+    def table_to_html(self, text, line, ch):
+        """カーソルのある Markdown の表を、HTML の表に変換する（置き換える行と、カーソルの位置を返す）。"""
+        if not self._table_args(text, line, ch):
+            return {"ok": False, "message": "表を読めません"}
+
+        def inline(s):
+            try:
+                return self._md.renderInline(s)
+            except Exception:
+                return html_escape(s)
+        return tableedit.to_html(text, line, ch, inline)
+
+    # --- 置換セット（replacesets.py）------------------------------------------
+    @staticmethod
+    def _replace_sets_path():
+        return os.path.join(data_dir(), "replace_sets.json")
+
+    def replace_sets_get(self):
+        """標準のセット（読み取り専用）と、利用者のセット。"""
+        return {"builtin": replacesets.BUILTIN, "user": replacesets.load(self._replace_sets_path())}
+
+    def replace_sets_save(self, sets):
+        """利用者のセットを保存する。保存した（整えた）内容を返す。"""
+        try:
+            return {"ok": True, "user": replacesets.save(self._replace_sets_path(), sets)}
+        except OSError as e:
+            return {"ok": False, "message": "保存できませんでした: %s" % e}
 
     def table_tab(self, text, line, ch, forward):
         if not self._table_args(text, line, ch):

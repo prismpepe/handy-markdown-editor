@@ -6,6 +6,7 @@
 - セルの区切りは、エスケープしていない `|`（`\\|` は、文字の `|`）。GFM の決まりに合わせる（コードの中の `|` も、区切りになる）。
 - **文字は、捨てない。** 見出し行よりセルが多い行があるときは、直さず、理由を返す（プレビューでは、はみ出した分が、表示されない）。
 - 引用（`> |`）や、リストの中の表は、対象外（字下げ 3 文字までの表だけ）。コードブロックの中は、表として扱わない。
+- **HTML の表への変換**（to_html）: セルの中の Markdown は、渡された関数で HTML にする。
 - 画面にも変換器にも依存しない（試験できるように）。
 """
 import re
@@ -254,6 +255,34 @@ def edit(text, line, ch, op):
     out = render(prefix, header, align, body)
     row_out = 1 if crow == -1 else (0 if crow == 0 else crow + 1)       # 出力の何行目か（0 見出し、1 区切り、2〜 本文）
     return _result(start, end, out, min(row_out, len(out) - 1), min(ccol, len(header) - 1))
+
+
+def to_html(text, line, ch, render_inline):
+    """カーソルのある Markdown の表を、HTML の表（`<table>`）に変換する。{"ok": True, "start", "end", "lines", "cursor"}。
+    セルの中の Markdown（**太字**・`コード`・[リンク](URL)・画像）は、render_inline で HTML にする（HTML の `<td>` の中では、
+    Markdown として解釈されないため）。セルの `\\|` は `|` に戻す。配置は、`align` 属性。"""
+    lines, blk = _locate(text, line)
+    if not blk:
+        return {"ok": False, "message": "カーソルが、表の中にありません"}
+    start, end = blk
+    prefix, header, align, body, wide = _parse(lines, start, end)
+    if wide:
+        return {"ok": False, "message": "見出し行よりセルが多い行があります（%s 行目）。直してから、操作してください" % "・".join(map(str, wide[:5]))}
+
+    def cell(tag, a, s):
+        attr = "" if a == "none" else ' align="%s"' % a
+        return "<%s%s>%s</%s>" % (tag, attr, render_inline(s.replace("\\|", "|")).strip(), tag)
+
+    out = [prefix + "<table>", prefix + "  <thead>",
+           prefix + "    <tr>" + "".join(cell("th", align[c], header[c]) for c in range(len(header))) + "</tr>",
+           prefix + "  </thead>"]
+    if body:
+        out.append(prefix + "  <tbody>")
+        for r in body:
+            out.append(prefix + "    <tr>" + "".join(cell("td", align[c], r[c]) for c in range(len(header))) + "</tr>")
+        out.append(prefix + "  </tbody>")
+    out.append(prefix + "</table>")
+    return {"ok": True, "start": start, "end": end, "lines": out, "cursor": [start, len(prefix)]}
 
 
 def tab(text, line, ch, forward=True):
