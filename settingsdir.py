@@ -61,6 +61,24 @@ def read_inherit(settings_dir, kind):
         return True
 
 
+def write_inherit(settings_dir, kind, value):
+    """settings.json の、その種類の inherit を書く。ほかの項目は、そのまま残す。"""
+    cfg_path = os.path.join(settings_dir, "settings.json")
+    try:
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        if not isinstance(cfg, dict):
+            cfg = {}
+    except (OSError, ValueError):
+        cfg = {}
+    section = cfg.get(kind) if isinstance(cfg.get(kind), dict) else {}
+    section["inherit"] = bool(value)
+    cfg[kind] = section
+    os.makedirs(settings_dir, exist_ok=True)
+    with open(cfg_path, "w", encoding="utf-8", newline="") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
 def list_md(folder, kind_label):
     """フォルダーの中の .md を、名前順に返す（サブフォルダーは見ない）。[{"id","name","kind"}]。"""
     try:

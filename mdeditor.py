@@ -670,16 +670,49 @@ class Api:
     def _replace_sets_path():
         return os.path.join(data_dir(), "replace_sets.json")
 
-    def replace_sets_get(self):
-        """標準のセット（読み取り専用）と、利用者のセット。"""
-        return {"builtin": replacesets.BUILTIN, "user": replacesets.load(self._replace_sets_path())}
+    def replace_sets_get(self, context=None):
+        """標準のセット（読み取り専用）・自分用のセット・文書フォルダー用のセット。context: 設定を探し始める場所（文書のパスか、フォルダー）。
+        project_path: 文書フォルダー用のファイルの場所（まだ無くても、作る場所）。can_project: 作れるか（文書の場所が分かるか）。
+        inherit: false なら、そのフォルダーでは、標準と自分用のセットを出さない（ファイルがあるときだけ）。"""
+        base, proj = self._context_dir(context), self._project_dir(context)
+        project = replacesets.load_project(proj)
+        ppath = replacesets.project_path(proj or os.path.join(base, settingsdir.SETTINGS_DIR)) if base else None
+        exists = bool(proj) and os.path.isfile(replacesets.project_path(proj))
+        inherit = settingsdir.read_inherit(proj, replacesets.KIND) if exists else True
+        return {"builtin": replacesets.BUILTIN, "user": replacesets.load(self._replace_sets_path()), "project": project,
+                "info": {"path": ppath, "exists": exists, "can_project": bool(base), "inherit": inherit}}
 
-    def replace_sets_save(self, sets):
-        """利用者のセットを保存する。保存した（整えた）内容を返す。"""
+    def replace_sets_save(self, user, project=None, context=None, inherit=None):
+        """自分用と文書フォルダー用のセットを保存する。保存した（整えた）内容を返す。
+        project が空で、ファイルが無いときは、フォルダーに何も作らない。inherit（真偽）は、ファイルがあるときだけ書く。"""
         try:
-            return {"ok": True, "user": replacesets.save(self._replace_sets_path(), sets)}
+            out = {"ok": True, "user": replacesets.save(self._replace_sets_path(), user)}
+            base, proj = self._context_dir(context), self._project_dir(context)
+            plist = replacesets.clean_sets(project, "project")
+            target = proj or (os.path.join(base, settingsdir.SETTINGS_DIR) if base else None)
+            have = bool(target) and os.path.isfile(replacesets.project_path(target))
+            if plist and not target:
+                return {"ok": False, "message": "先に文書を保存するか、フォルダーを開いてください（フォルダー用のセットは、文書のあるフォルダーに置きます）"}
+            if target and (plist or have):
+                out["project"] = replacesets.save(replacesets.project_path(target), plist, "project")
+                if isinstance(inherit, bool) and inherit != settingsdir.read_inherit(target, replacesets.KIND):
+                    settingsdir.write_inherit(target, replacesets.KIND, inherit)
+            else:
+                out["project"] = []
+            return out
         except OSError as e:
             return {"ok": False, "message": "保存できませんでした: %s" % e}
+
+    def open_replace_sets_folder(self, context=None):
+        """文書フォルダー用の設定の置き場（.markdown-editor）を、エクスプローラーで開く。"""
+        proj = self._project_dir(context)
+        if not proj:
+            return {"error": "このフォルダーには、まだ設定がありません。フォルダー用のセットを保存すると、作られます"}
+        try:
+            os.startfile(proj)
+        except OSError as e:
+            return {"error": "開けません: %s" % e}
+        return {"error": None, "folder": proj}
 
     def table_tab(self, text, line, ch, forward):
         if not self._table_args(text, line, ch):

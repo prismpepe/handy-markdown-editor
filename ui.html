@@ -309,6 +309,7 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
 #rsSteps .rss label { font-size: 12px; white-space: nowrap; } #rsSteps .rss .n { color: var(--muted); text-align: right; }
 #rsSteps .rss button { padding: 0 6px; }
 #rsdlg .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
+#rsdlg .rsfoot { margin-top: 8px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
 #rsMsg { font-size: 12px; color: var(--muted); min-height: 1.4em; } #rsMsg.bad { color: var(--danger); }
 #sveil, #rveil { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
 #sveil[hidden], #rveil[hidden] { display: none; }
@@ -667,11 +668,16 @@ select, input[type=number] { font: inherit; color: var(--fg); background: var(--
       </div>
       <div>
         <div class="rsname"><label for="rsName">名前</label><input id="rsName" type="text" maxlength="60"></div>
+        <div class="rsname"><label for="rsScope">保存先</label>
+          <select id="rsScope" title="自分用: すべての文書で使います。この文書フォルダー: 文書のあるフォルダーの .markdown-editor に保存し、フォルダーごと持ち出せます（そのフォルダーの文書だけで使います）">
+            <option value="user">自分用（すべての文書で使う）</option><option value="project">この文書フォルダー（.markdown-editor）</option></select></div>
         <div id="rsSteps"></div>
         <div class="rsbtn"><button id="rsAdd">手順を追加</button><button id="rsFromFind" title="検索・置換の欄にある、検索する文字列・置換後の文字列・設定を、手順として足す">検索欄の内容を手順に追加</button></div>
         <div id="rsMsg"></div>
       </div>
     </div>
+    <div class="rsfoot"><span id="rsWhere"></span> <button id="rsOpen" title="フォルダー用のセットの置き場（.markdown-editor）を、エクスプローラーで開く">場所を開く</button>
+      <label id="rsInheritRow" hidden><input id="rsInherit" type="checkbox"> このフォルダーでは、標準と自分用のセットを出さない</label></div>
     <div class="btns"><button id="rsRunSel" title="選んでいる文字だけに、実行する">選択範囲に実行</button><button id="rsRunAll" class="primary" title="文書全体に実行する">文書全体に実行</button><button id="rsClose">閉じる</button></div>
   </div>
 </div>
@@ -1913,27 +1919,36 @@ function tableMenuItems(info) {
 }
 
 // ============================================================ 置換セット（よく使う置換に名前を付けて保存し、順に実行する。replacesets.py）
-const rs = { builtin: [], user: [], cur: null, saveTimer: null };
+// 保存先は 2 つ: 自分用（すべての文書で使う）と、文書フォルダー用（.markdown-editor\replace_sets.json。テンプレート・定型文と同じ置き場）。
+const rs = { builtin: [], user: [], project: [], info: {}, cur: null, saveTimer: null, ctx: null };
 const replaceSetDlgOpen = () => !$('rsveil').hidden;
-const rsAll = () => rs.builtin.concat(rs.user);
+// 一覧に出すセット（フォルダー用 → 自分用 → 標準）。フォルダーの設定で inherit が false なら、フォルダー用だけ
+const rsAll = () => rs.project.concat(rs.info.inherit === false ? [] : rs.user.concat(rs.builtin));
 const rsFind = id => rsAll().find(s => s.id === id) || null;
+const rsMark = s => s.builtin ? '［標準］' : s.scope === 'project' ? '［フォルダー］' : '［自分用］';
 function rsSay(t, bad) { $('rsMsg').textContent = t || ''; $('rsMsg').classList.toggle('bad', !!bad); }
 async function rsLoad() {
-  const r = await api.replace_sets_get();
-  rs.builtin = r.builtin || []; rs.user = r.user || [];
+  rs.ctx = settingsContext();
+  const r = await api.replace_sets_get(rs.ctx);
+  rs.builtin = r.builtin || []; rs.user = r.user || []; rs.project = r.project || []; rs.info = r.info || {};
 }
 function rsRenderList(selectId) {
   const sel = $('rsList'); sel.textContent = '';
-  const add = (s, mark) => { const o = document.createElement('option'); o.value = s.id; o.textContent = (mark ? '［標準］' : '') + s.name; sel.appendChild(o); };
-  rs.builtin.forEach(s => add(s, true)); rs.user.forEach(s => add(s, false));
+  rsAll().forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = rsMark(s) + s.name; sel.appendChild(o); });
   const want = selectId && rsFind(selectId) ? selectId : (rsAll()[0] ? rsAll()[0].id : '');
   sel.value = want; rsShow(want);
+  $('rsWhere').textContent = rs.info.path
+    ? 'フォルダー用のセットの置き場: ' + rs.info.path + (rs.info.exists || rs.project.length ? '' : '（まだありません。「保存先」を「この文書フォルダー」にすると、作ります）')
+    : 'フォルダー用のセットを使うには、先に文書を保存するか、フォルダーを開いてください';
+  $('rsInheritRow').hidden = !rs.project.length; $('rsInherit').checked = rs.info.inherit === false;
 }
 function rsShow(id) {
   rs.cur = rsFind(id);
   const s = rs.cur, ro = !s || s.builtin || doc.readonly;
   $('rsName').value = s ? s.name : ''; $('rsName').disabled = ro;
-  $('rsDel').disabled = !s || s.builtin; $('rsCopy').disabled = !s;
+  $('rsScope').value = s && !s.builtin ? s.scope : 'user'; $('rsScope').disabled = ro;
+  $('rsScope').querySelector('option[value=project]').disabled = !rs.info.can_project;
+  $('rsDel').disabled = !s || s.builtin || doc.readonly; $('rsCopy').disabled = !s || doc.readonly;
   $('rsAdd').disabled = ro; $('rsFromFind').disabled = ro;
   $('rsRunAll').disabled = !s || doc.readonly || !s.steps.length;
   $('rsRunSel').disabled = !s || doc.readonly || !s.steps.length || !cm.somethingSelected();
@@ -1956,7 +1971,7 @@ function rsShow(id) {
     del.onclick = () => { s.steps.splice(i, 1); rsChanged(); rsShow(s.id); };
     box.appendChild(row);
   });
-  rsSay(s && s.builtin ? '標準のセットです（編集はできません。「コピー」で、自分のセットにして編集できます）' : '');
+  rsSay(s && s.builtin ? '標準のセットです（編集はできません。「コピー」で、自分用のセットにして編集できます）' : '');
 }
 function rsChanged() {                                    // 利用者のセットを、少し待ってから保存する（入力のたびには書かない）
   clearTimeout(rs.saveTimer);
@@ -1966,11 +1981,16 @@ function rsChanged() {                                    // 利用者のセッ�
 }
 async function rsSave() {
   clearTimeout(rs.saveTimer);
-  const r = await api.replace_sets_save(rs.user);
+  const r = await api.replace_sets_save(rs.user, rs.project, rs.ctx, rs.info.inherit !== false);
   if (!r.ok) { rsSay(r.message, true); return false; }
+  if (r.project && r.project.length && !rs.info.exists) { rs.info.exists = true; rsRenderListKeep(); }
   return true;
 }
+const rsRenderListKeep = () => { $('rsWhere').textContent = 'フォルダー用のセットの置き場: ' + rs.info.path; };
 function rsNewId() { return 'u-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+// 新しいセットの、はじめの保存先。フォルダーの設定が「標準と自分用を出さない」なら、フォルダー用（自分用だと、一覧に出ないため）
+const rsDefaultScope = () => rs.info.inherit === false && rs.info.can_project ? 'project' : 'user';
+const rsListOf = s => s.scope === 'project' ? rs.project : rs.user;
 async function openReplaceSetDlg() {
   await rsLoad();
   rsRenderList(rs.cur ? rs.cur.id : '');
@@ -2017,20 +2037,32 @@ function initReplaceSets() {
   $('rsList').onchange = () => rsShow($('rsList').value);
   $('rsClose').onclick = closeReplaceSetDlg;
   $('rsveil').addEventListener('mousedown', e => { if (e.target === $('rsveil')) closeReplaceSetDlg(); });
-  $('rsName').oninput = () => { if (rs.cur && !rs.cur.builtin) { rs.cur.name = $('rsName').value; const o = $('rsList').selectedOptions[0]; if (o) o.textContent = rs.cur.name || '（名前なし）'; rsChanged(); } };
+  $('rsName').oninput = () => { if (rs.cur && !rs.cur.builtin) { rs.cur.name = $('rsName').value; const o = $('rsList').selectedOptions[0]; if (o) o.textContent = rsMark(rs.cur) + (rs.cur.name || '（名前なし）'); rsChanged(); } };
+  $('rsScope').onchange = () => {                         // 保存先を変える（自分用 ⇄ この文書フォルダー）
+    const s = rs.cur; if (!s || s.builtin) return;
+    const to = $('rsScope').value; if (to === s.scope) return;
+    const from = rsListOf(s); from.splice(from.indexOf(s), 1);
+    s.scope = to; rsListOf(s).push(s);
+    rsChanged(); rsRenderList(s.id);
+  };
+  $('rsInherit').onchange = () => {                       // このフォルダーでは、標準と自分用を出さない
+    rs.info.inherit = !$('rsInherit').checked; rsChanged();
+    rsRenderList(rs.cur && rsFind(rs.cur.id) ? rs.cur.id : '');
+  };
+  $('rsOpen').onclick = async () => { const r = await api.open_replace_sets_folder(rs.ctx); if (r && r.error) rsSay(r.error, true); };
   $('rsNew').onclick = () => {
-    const s = { id: rsNewId(), name: '新しい置換セット', builtin: false, steps: [{ find: '', replace: '', regex: false, case: false }] };
-    rs.user.push(s); rsRenderList(s.id); rsChanged(); $('rsName').focus(); $('rsName').select();
+    const s = { id: rsNewId(), name: '新しい置換セット', builtin: false, scope: rsDefaultScope(), steps: [{ find: '', replace: '', regex: false, case: false }] };
+    rsListOf(s).push(s); rsRenderList(s.id); rsChanged(); $('rsName').focus(); $('rsName').select();
   };
   $('rsCopy').onclick = () => {
     const c = rs.cur; if (!c) return;
-    const s = { id: rsNewId(), name: c.name.replace(/^\s+|\s+$/g, '') + '（コピー）', builtin: false, steps: c.steps.map(x => ({ ...x })) };
-    rs.user.push(s); rsRenderList(s.id); rsChanged();
+    const s = { id: rsNewId(), name: c.name.replace(/^\s+|\s+$/g, '') + '（コピー）', builtin: false, scope: c.builtin ? rsDefaultScope() : c.scope, steps: c.steps.map(x => ({ ...x })) };
+    rsListOf(s).push(s); rsRenderList(s.id); rsChanged();
   };
   $('rsDel').onclick = async () => {
     const c = rs.cur; if (!c || c.builtin) return;
     if (await askOver($('rsveil'), '置換セットを削除', `「${c.name}」を削除します。元に戻せません。`, [{ label: '削除' }, { label: 'やめる', primary: true }]) !== 0) return;
-    rs.user = rs.user.filter(x => x.id !== c.id); rs.cur = null; await rsSave(); rsRenderList('');
+    const list = rsListOf(c); list.splice(list.indexOf(c), 1); rs.cur = null; await rsSave(); rsRenderList('');
   };
   $('rsAdd').onclick = () => { if (!rs.cur || rs.cur.builtin) return; rs.cur.steps.push({ find: '', replace: '', regex: false, case: false }); rsChanged(); rsShow(rs.cur.id); };
   $('rsFromFind').onclick = () => {
@@ -2042,6 +2074,7 @@ function initReplaceSets() {
   $('rsRunSel').onclick = () => runReplaceSet('sel');
   $('rSets').onclick = () => openReplaceSetDlg();
 }
+
 
 // ============================================================ 表・データの取り込み（Excel のセル・CSV → Markdown の表・JSON）
 const tableDlgOpen = () => !$('tveil').hidden;

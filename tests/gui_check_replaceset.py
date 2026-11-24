@@ -118,7 +118,7 @@ def drive():
     # 閉じて開き直しても、残る
     js("rsClose.click()"); time.sleep(.5)
     js("openReplaceSetDlg()"); time.sleep(1.2)
-    check("閉じて開き直しても、利用者のセットは残る", js("[...rsList.options].filter(o => !o.textContent.startsWith('［標準］')).map(o => o.textContent).join('|')"), '私の置換|私の置換（コピー）')
+    check("閉じて開き直しても、利用者のセットは残る", js("[...rsList.options].filter(o => !o.textContent.startsWith('［標準］')).map(o => o.textContent.replace('［自分用］', '')).join('|')"), '私の置換|私の置換（コピー）')
     check("Esc で閉じる", [js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); null"), time.sleep(.8), js("document.getElementById('rsveil').hidden")][2], True)
 
     # --- 検索・置換の欄から、置換セットを開く
@@ -126,6 +126,54 @@ def drive():
     check("検索・置換の欄に、「置換セット…」のボタンがある", js("!document.getElementById('rSets').closest('#rrow').hidden"), True)
     js("document.getElementById('rSets').click()"); time.sleep(1.2)
     check("そのボタンで、ダイアログが開く", js("!document.getElementById('rsveil').hidden"), True)
+    js("rsClose.click()"); time.sleep(.5)
+
+    # --- 文書フォルダー用のセット（.markdown-editor\replace_sets.json）
+    proj = tempfile.mkdtemp(prefix='md_proj_')
+    docp = os.path.join(proj, 'a.md')
+    open(docp, 'w', encoding='utf-8').write('表記ゆれ ＡＢＣ\n')
+    js("cm.markClean(); doc.metaDirty = false; null")                       # 未保存の変更があると、開く前に確認が出る
+    js("openPath(%s)" % json.dumps(docp)); time.sleep(2.0)
+    js("openReplaceSetDlg()"); time.sleep(1.5)
+    where = js("document.getElementById('rsWhere').textContent")
+    check("文書を開いていれば、フォルダー用のセットの置き場が表示される", ['.markdown-editor' in where, 'replace_sets.json' in where], [True, True])
+    check("「保存先」に、この文書フォルダーを選べる", js("rsScope.querySelector('option[value=project]').disabled"), False)
+    js("rsNew.click()"); time.sleep(.3)
+    js("rsName.value = '管理組合の表記'; rsName.dispatchEvent(new Event('input'))")
+    js("(() => { const i = document.querySelectorAll('#rsSteps .rss input[type=text]'); i[0].value = 'ＡＢＣ'; i[0].dispatchEvent(new Event('input')); i[1].value = 'ABC'; i[1].dispatchEvent(new Event('input')); })()")
+    js("rsScope.value = 'project'; rsScope.dispatchEvent(new Event('change'))"); time.sleep(1.5)
+    pfile = os.path.join(proj, '.markdown-editor', 'replace_sets.json')
+    check("保存先を「この文書フォルダー」にすると、.markdown-editor に保存される", os.path.isfile(pfile), True)
+    saved = json.load(open(pfile, encoding='utf-8'))['sets'] if os.path.isfile(pfile) else []
+    check("保存された内容（名前と手順）", [[x['name'], x['steps'][0]['find'], x['steps'][0]['replace']] for x in saved], [['管理組合の表記', 'ＡＢＣ', 'ABC']])
+    check("一覧では、［フォルダー］の印が付く", js("rsList.selectedOptions[0].textContent"), '［フォルダー］管理組合の表記')
+    check("自分用のファイルには、入らない", [x['name'] for x in api.replace_sets_get(proj)['user']], ['私の置換', '私の置換（コピー）'])
+    js("rsRunAll.click()"); time.sleep(.6)
+    check("フォルダー用のセットも、実行できる", js("cm.getValue()"), '表記ゆれ ABC\n')
+    js("rsClose.click()"); time.sleep(.5)
+    # 閉じて開き直すと、フォルダー用が、先頭に出る（フォルダー → 自分用 → 標準）
+    js("openReplaceSetDlg()"); time.sleep(1.2)
+    check("開き直すと、フォルダー用のセットが、一覧の先頭に出る", js("rsList.options[0].textContent"), '［フォルダー］管理組合の表記')
+    # 標準と自分用を出さない（inherit false）
+    check("フォルダー用のセットがあれば、「標準と自分用を出さない」の欄が出る", js("!document.getElementById('rsInheritRow').hidden"), True)
+    js("rsInherit.click()"); time.sleep(1.2)
+    check("チェックすると、一覧は、フォルダー用だけになる", js("[...rsList.options].map(o => o.textContent).join('|')"), '［フォルダー］管理組合の表記')
+    cfg = json.load(open(os.path.join(proj, '.markdown-editor', 'settings.json'), encoding='utf-8'))
+    check("settings.json に、inherit: false が書かれる", cfg.get('replace_sets'), {'inherit': False})
+    js("rsNew.click()"); time.sleep(.5)
+    check("「出さない」設定のとき、新しいセットは、フォルダー用になる（一覧に出るため）", js("rsList.selectedOptions[0].textContent.startsWith('［フォルダー］')"), True)
+    js("rsInherit.click()"); time.sleep(1.2)
+    check("チェックを外すと、標準と自分用のセットが、また出る", js("rsList.options.length > 5"), True)
+    js("rsClose.click()"); time.sleep(.8)
+    cfg = json.load(open(os.path.join(proj, '.markdown-editor', 'settings.json'), encoding='utf-8'))
+    check("外した設定も、保存される", cfg.get('replace_sets'), {'inherit': True})
+    # 保存先を自分用へ戻すと、フォルダー用のファイルから消える
+    js("openReplaceSetDlg()"); time.sleep(1.2)
+    js("rsList.value = [...rsList.options].find(o => o.textContent === '［フォルダー］管理組合の表記').value; rsList.dispatchEvent(new Event('change'))")
+    js("rsScope.value = 'user'; rsScope.dispatchEvent(new Event('change'))"); time.sleep(1.5)
+    names = [x['name'] for x in json.load(open(pfile, encoding='utf-8'))['sets']]
+    check("保存先を「自分用」に戻すと、フォルダー用のファイルから消え、自分用に入る",
+          ['管理組合の表記' in names, '管理組合の表記' in [x['name'] for x in api.replace_sets_get(proj)['user']]], [False, True])
     js("rsClose.click()"); time.sleep(.5)
 
     # --- 表を HTML の表に変換
