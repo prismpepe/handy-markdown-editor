@@ -182,6 +182,15 @@ def drive():
     check("再描画の途中で編集欄を最上端へ戻したら、プレビューも上端（60px 以内）", top <= 60, True)
     print('    プレビューの位置', top, flush=True)
 
+    # --- 7. 画像が読み込まれる前に、編集欄を最下端へ動かしても、読み込まれたあとで、プレビューも最下端になる
+    js("(() => { for (const i of document.querySelectorAll('#preview img')) { i.dataset.s = i.dataset.s || i.src; i.removeAttribute('src'); } cm.scrollTo(0, 1e9); })()")
+    time.sleep(.4)
+    js("(() => { for (const i of document.querySelectorAll('#preview img')) { i.src = i.dataset.s + '&b=' + Math.random(); } })()")
+    wait(ALL_LOADED, 60); time.sleep(1.5)
+    gap = js("(() => { const p = document.getElementById('pscroll'); return Math.round(p.scrollHeight - p.clientHeight - p.scrollTop); })()")
+    check("画像が遅れて届いても、編集欄が最下端なら、プレビューも最下端（残り 5px 以内）", gap <= 5, True)
+    print('    プレビューの残り', gap, 'px', flush=True)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True

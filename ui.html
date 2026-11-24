@@ -834,6 +834,7 @@ async function updatePreview(resetScroll) {
   const mathDone = renderMath(seq);
   pv.scrollTop = keep;
   const followed = followCursor;
+  placeBy = followed ? 'cursor' : 'top';
   if (resetScroll) { followCursor = false; pv.scrollTop = 0; }
   else if (followCursor) { followCursor = false; previewToCursor(); }
   previewSettled = Promise.all([mathDone, renderDiagrams(seq), renderVega(seq)]).catch(() => {});      // HTML の書き出しが、描画の完了を待つために使う
@@ -1005,6 +1006,7 @@ window.addEventListener('focus', () => {
 function previewYForLine(line) {
   const pv = $('pscroll');
   const a = [...document.querySelectorAll('#preview [data-line]')]
+    .filter(el => el.getClientRects().length)          // 閉じた <details> の中など、表示されていない要素は、位置が取れない（0 になり、でたらめな値が混ざる）
     .map(el => ({ line: +el.dataset.line, el })).sort((x, y) => x.line - y.line);
   if (!a.length) return 0;
   let i = -1;
@@ -1023,11 +1025,18 @@ function fracInLine(line, localY) {
   const a = cm.heightAtLine(line, 'local'), b = cm.heightAtLine(line + 1, 'local');
   return b > a ? Math.min(0.999, Math.max(0, (localY - a) / (b - a))) : 0;
 }
-let edScrollAt = 0, pvUserAt = 0;
+let edScrollAt = 0, pvUserAt = 0, placeBy = 'top', placeRaf = 0;
+// 画像は、読み込まれるまで大きさが分からない。読み込まれてプレビューの高さが変わると、同じ行を指していた位置がずれる
+// （最下端や最上端で、プレビューが取り残される）。自分でプレビューをスクロールしていなければ、読み込みのたびに、合わせ直す
+function replaceAfterLoad() {
+  if (prefs.view === 'edit' || pvUserAt > edScrollAt) return;
+  cancelAnimationFrame(placeRaf);
+  placeRaf = requestAnimationFrame(() => { if (placeBy === 'cursor') previewToCursor(); else syncFromTop(); });
+}
 function syncFromTop() {                       // 編集側のスクロールにプレビューを合わせる
   if (prefs.view === 'edit') return;
   const si = cm.getScrollInfo(), y = si.top, top = cm.lineAtHeight(y, 'local'), pv = $('pscroll');
-  let t = previewYForLine(top + fracInLine(top, y));
+  let t = y <= 0 ? 0 : previewYForLine(top + fracInLine(top, y));     // 編集欄が最上端なら、プレビューも最上端
   // 編集欄の最後の 1 画面分では、先頭行の対応だけだと、プレビューが末尾まで届かない（最後の要素が上端までしか来ない）。
   // 最下端でプレビューも最下端になるよう、終わりに向けて、プレビューの末尾へなめらかに寄せる
   const emax = si.height - si.clientHeight, pmax = pv.scrollHeight - pv.clientHeight;
@@ -3123,7 +3132,8 @@ document.addEventListener('DOMContentLoaded', () => {
   cm.on('change', () => { followCursor = true; schedulePreview(); updateDirty(); scheduleCounters(); lintEdited(); });
   cm.on('gutterClick', (c, line, gutter) => { if (gutter === 'lint-gutter') lintFromGutter(line); });
   cm.on('cursorActivity', scheduleCounters);
-  cm.on('scroll', () => { edScrollAt = Date.now(); syncFromTop(); });
+  cm.on('scroll', () => { edScrollAt = Date.now(); if (!followCursor) placeBy = 'top'; syncFromTop(); });
+  ['load', 'error'].forEach(t => $('preview').addEventListener(t, e => { if (e.target && e.target.tagName === 'IMG') replaceAfterLoad(); }, true));
   ['wheel', 'mousedown', 'touchstart'].forEach(t => $('pscroll').addEventListener(t, () => { pvUserAt = Date.now(); }, { capture: true, passive: true }));
   finder = MdFind.create(cm, { bar: $('find'), rrow: $('rrow'), q: $('fq'), r: $('fr'), cs: $('fCase'), re: $('fRegex'), count: $('fCount') });
   cm.getWrapperElement().addEventListener('contextmenu', editorMenu);
