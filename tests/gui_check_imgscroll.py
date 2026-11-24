@@ -191,6 +191,11 @@ def drive():
     check("画像が遅れて届いても、編集欄が最下端なら、プレビューも最下端（残り 5px 以内）", gap <= 5, True)
     print('    プレビューの残り', gap, 'px', flush=True)
 
+    # --- 8. 編集欄に合わせているとき、利用者の操作でなく、プレビューが動かされたら、元の位置へ戻る
+    js("pvUserAt = 0; cm.scrollTo(0, 0); null"); time.sleep(.6)
+    js("document.getElementById('pscroll').scrollTop = 900; null"); time.sleep(.8)
+    check("プレビューが、操作によらず動かされても、編集欄の位置（最上端）へ戻る", js("document.getElementById('pscroll').scrollTop") <= 20, True)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True

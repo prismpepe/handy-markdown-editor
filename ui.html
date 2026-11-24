@@ -1028,6 +1028,13 @@ function fracInLine(line, localY) {
 let edScrollAt = 0, pvUserAt = 0, placeBy = 'top', placeRaf = 0;
 // 画像は、読み込まれるまで大きさが分からない。読み込まれてプレビューの高さが変わると、同じ行を指していた位置がずれる
 // （最下端や最上端で、プレビューが取り残される）。自分でプレビューをスクロールしていなければ、読み込みのたびに、合わせ直す
+// 編集欄に合わせているのに、利用者の操作でなく、プレビューが動いたとき（画像の読み込み・再描画・履歴の復元などで起きる）は、元の位置へ戻す。
+// 自分でスクロールしている間（ホイール・つまみのドラッグ・キー操作の直後）は、何もしない
+let pvDragging = false, driftRaf = 0;
+function onPreviewDrift() {
+  if (prefs.view === 'edit' || pvDragging || pvUserAt > edScrollAt || Date.now() - pvUserAt < 1500) return;
+  if (placeBy === 'cursor') previewToCursor(); else syncFromTop();
+}
 function replaceAfterLoad() {
   if (prefs.view === 'edit' || pvUserAt > edScrollAt) return;
   cancelAnimationFrame(placeRaf);
@@ -1329,6 +1336,7 @@ async function confirmDiscard() {
 }
 
 function loadIntoEditor(text) {
+  pvUserAt = 0;                                    // 開き直した文書は、プレビューを、編集欄に合わせる
   cm.setValue(text); cm.clearHistory(); cm.markClean(); doc.metaDirty = false;
   cm.setCursor({ line: 0, ch: 0 }); cm.scrollTo(0, 0);
   applyDocMeta(); updateDirty(); updateCounters(); updatePreview(true); renderList();
@@ -3134,7 +3142,10 @@ document.addEventListener('DOMContentLoaded', () => {
   cm.on('cursorActivity', scheduleCounters);
   cm.on('scroll', () => { edScrollAt = Date.now(); if (!followCursor) placeBy = 'top'; syncFromTop(); });
   ['load', 'error'].forEach(t => $('preview').addEventListener(t, e => { if (e.target && e.target.tagName === 'IMG') replaceAfterLoad(); }, true));
-  ['wheel', 'mousedown', 'touchstart'].forEach(t => $('pscroll').addEventListener(t, () => { pvUserAt = Date.now(); }, { capture: true, passive: true }));
+  ['wheel', 'mousedown', 'touchstart', 'keydown'].forEach(t => $('pscroll').addEventListener(t, () => { pvUserAt = Date.now(); }, { capture: true, passive: true }));
+  $('pscroll').addEventListener('mousedown', () => { pvDragging = true; pvUserAt = Date.now(); }, { capture: true, passive: true });
+  window.addEventListener('mouseup', () => { if (pvDragging) { pvDragging = false; pvUserAt = Date.now(); } }, true);
+  $('pscroll').addEventListener('scroll', () => { cancelAnimationFrame(driftRaf); driftRaf = requestAnimationFrame(onPreviewDrift); });
   finder = MdFind.create(cm, { bar: $('find'), rrow: $('rrow'), q: $('fq'), r: $('fr'), cs: $('fCase'), re: $('fRegex'), count: $('fCount') });
   cm.getWrapperElement().addEventListener('contextmenu', editorMenu);
   $('pscroll').addEventListener('contextmenu', previewMenu);
