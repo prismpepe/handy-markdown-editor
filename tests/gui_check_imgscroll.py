@@ -196,6 +196,33 @@ def drive():
     js("document.getElementById('pscroll').scrollTop = 900; null"); time.sleep(.8)
     check("プレビューが、操作によらず動かされても、編集欄の位置（最上端）へ戻る", js("document.getElementById('pscroll').scrollTop") <= 20, True)
 
+    # --- 9. 大きな窓で、編集欄の動ける幅が短い文書でも、最上端ではプレビューも最上端・最下端では最下端・途中は順に動く
+    SHORT = os.path.join(tmp, 'short.md')
+    body = ['# 短い文書', '']
+    for n in range(3):
+        body += ['あ' * 60, '', f'![図](http://127.0.0.1:{PORT}/p{n}.png?s={n})', '']
+    open(SHORT, 'w', encoding='utf-8').write('\n'.join(body))
+    w.resize(1900, 1380); time.sleep(1.5)
+    js("cm.markClean(); doc.metaDirty = false; null")        # 「変更を保存しますか?」の確認で、止まらないようにする
+    js("openPath(%s)" % json.dumps(SHORT)); time.sleep(1)
+    wait("[...document.querySelectorAll('#preview img')].length === 3 && [...document.querySelectorAll('#preview img')].every(i => i.complete && i.naturalWidth > 0)", 60); time.sleep(1.0)
+    for filler in range(0, 200, 4):                       # 編集欄の動ける幅が、画面の高さより、だいぶ短くなる行数を探す
+        js("var NL = String.fromCharCode(10); cm.setValue(cm.getValue().split(NL + '---fill---')[0] + NL + '---fill---' + NL.repeat(%d)); null" % filler)
+        time.sleep(.15)
+        emax = js("cm.getScrollInfo().height - cm.getScrollInfo().clientHeight")
+        if 40 < emax < 300:
+            break
+    print('    編集欄の動ける幅', emax, 'px', flush=True)
+    js("cm.scrollTo(0, 0); null"); time.sleep(.6)
+    check("動ける幅が短い文書で、編集欄が最上端のとき、プレビューも最上端（20px 以内）", js("document.getElementById('pscroll').scrollTop") <= 20, True)
+    ys = []
+    for k in range(0, 11):
+        js("cm.scrollTo(0, %d); null" % int(emax * k / 10)); time.sleep(.3)
+        ys.append(js("document.getElementById('pscroll').scrollTop"))
+    check("編集欄を最上端から最下端へ動かすと、プレビューは、順に動き続ける", all(b >= a for a, b in zip(ys, ys[1:])), True)
+    gap = js("(() => { const p = document.getElementById('pscroll'); return Math.round(p.scrollHeight - p.clientHeight - p.scrollTop); })()")
+    check("動ける幅が短い文書で、編集欄が最下端のとき、プレビューも最下端（5px 以内）", gap <= 5, True)
+
     print("RESULT", sum(results), "/", len(results), flush=True)
     api._dirty = False
     api._closing = True
@@ -203,4 +230,14 @@ def drive():
 
 
 threading.Thread(target=drive, daemon=True).start()
+
+
+def watchdog():
+    """試験が止まっても、テスト用の画面を残さない（確認のダイアログなどで止まったとき）。"""
+    time.sleep(300)
+    print('NG 時間切れ（試験が止まったため、終了した）', flush=True)
+    os._exit(1)
+
+
+threading.Thread(target=watchdog, daemon=True).start()
 webview.start()
