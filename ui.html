@@ -1013,14 +1013,20 @@ function previewYForLine(line) {
   const frac = Math.min(1, (line - a[i].line) / Math.max(1, nxt.line - a[i].line));
   return y0 + (yOf(nxt.el) - y0) * frac;
 }
+// 行の中の位置（0〜1）。長い行は、折り返して何行分もの高さになる。行の番号だけで合わせると、その間は、プレビューが動かず、次の行で、
+// 一気に動く（画像だけの行は、編集欄では数行分、プレビューでは画像 1 枚分の高さになり、数百 px 飛ぶ）。折り返しの中の位置も使って、なめらかに合わせる
+function fracInLine(line, localY) {
+  const a = cm.heightAtLine(line, 'local'), b = cm.heightAtLine(line + 1, 'local');
+  return b > a ? Math.min(0.999, Math.max(0, (localY - a) / (b - a))) : 0;
+}
 function syncFromTop() {                       // 編集側のスクロールにプレビューを合わせる
   if (prefs.view === 'edit') return;
-  const top = cm.lineAtHeight(cm.getScrollInfo().top, 'local');
-  $('pscroll').scrollTop = previewYForLine(top);
+  const y = cm.getScrollInfo().top, top = cm.lineAtHeight(y, 'local');
+  $('pscroll').scrollTop = previewYForLine(top + fracInLine(top, y));
 }
 function previewToCursor() {                   // 打鍵中は、書いている場所をプレビューに出す
-  const pv = $('pscroll');
-  pv.scrollTop = Math.max(0, previewYForLine(cm.getCursor().line) - pv.clientHeight * 0.3);
+  const pv = $('pscroll'), c = cm.getCursor();
+  pv.scrollTop = Math.max(0, previewYForLine(c.line + fracInLine(c.line, cm.cursorCoords(c, 'local').top)) - pv.clientHeight * 0.3);
 }
 
 // ---- プレビューの倍率
