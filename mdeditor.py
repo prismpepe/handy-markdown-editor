@@ -49,6 +49,7 @@ import printing
 import shellreg
 import recycle
 import settingsdir
+import htmltable
 import replacesets
 import snippets
 from sanitize import sanitize
@@ -713,6 +714,30 @@ class Api:
         except OSError as e:
             return {"error": "開けません: %s" % e}
         return {"error": None, "folder": proj}
+
+    @staticmethod
+    def _offset(text, line, ch):
+        """(行, 桁) を、文書全体の文字の数にする。範囲の外なら None。"""
+        if not (isinstance(text, str) and len(text) <= 2_000_000 and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in (line, ch))):
+            return None
+        lines = text.split("\n")
+        if line >= len(lines):
+            return None
+        return sum(len(l) + 1 for l in lines[:line]) + min(ch, len(lines[line]))
+
+    def html_table_info(self, text, line, ch):
+        """カーソルが、扱える HTML の表の中か（セル結合のメニュー用）。コードブロックの中は、表として扱わない。"""
+        off = self._offset(text, line, ch)
+        if off is None or tableedit._in_fence(text.split("\n"), line):
+            return {"in_table": False}
+        return htmltable.info(text, off)
+
+    def html_table_edit(self, text, line, ch, op, force=False):
+        """HTML の表のセルを、結合・解除する。取り除くセルに文字があれば、まず確認の文を返す（force=True で実行）。"""
+        off = self._offset(text, line, ch)
+        if off is None or op not in htmltable.OPS or tableedit._in_fence(text.split("\n"), line):
+            return {"ok": False, "message": "この位置では、操作できません"}
+        return htmltable.edit(text, off, op, force is True)
 
     def table_tab(self, text, line, ch, forward):
         if not self._table_args(text, line, ch):

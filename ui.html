@@ -1880,6 +1880,32 @@ async function tableEdit(op) {
   if (!r.ok) { status(r.message, true, 5000); return; }
   applyTableResult(r);
 }
+// HTML の表の、セルの結合・解除（htmltable.py）
+function htmlTableMenuItems(info) {
+  const ro = doc.readonly;
+  if (info.error) return [{ label: '— HTML の表 —', disabled: true, run() {} }, { label: 'この表は、セルを結合できません（' + info.error + '）', disabled: true, run() {} }, '-'];
+  const it = (label, op, ok) => ({ label, disabled: ro || !ok, run: () => htmlTableEdit(op) });
+  return [
+    { label: '— HTML の表（セルの結合）—', disabled: true, run() {} },
+    it('右のセルと結合', 'merge_right', info.can_right), it('下のセルと結合', 'merge_down', info.can_down), it('結合を解除', 'split', info.can_split),
+    '-',
+  ];
+}
+async function htmlTableEdit(op, force) {
+  if (doc.readonly) return;
+  const c = cm.getCursor(), gen = cm.changeGeneration();
+  const r = await api.html_table_edit(cm.getValue(), c.line, c.ch, op, !!force);
+  if (gen !== cm.changeGeneration()) { status('操作の間に文書が変わったので、やめました。もう一度、操作してください', true, 5000); return; }
+  if (r.confirm) {                                            // 取り除くセルに文字がある: 操作者に、実行するかを決めてもらう
+    const i = await ask('セルを結合しますか？', r.confirm, [{ label: '結合する' }, { label: 'やめる', primary: true }]);
+    if (i === 0) await htmlTableEdit(op, true);
+    return;
+  }
+  if (!r.ok) { status(r.message, true, 5000); return; }
+  cm.replaceRange(r.text, cm.posFromIndex(r.from), cm.posFromIndex(r.to));      // 変わった部分だけを置き換える（1回の取り消しで戻る）
+  cm.setCursor(cm.posFromIndex(r.cursor)); cm.focus();
+  status(r.message + '（Ctrl+Z で元に戻せます）', false, 4000);
+}
 async function tableToHtml() {
   if (doc.readonly) return;
   const c = cm.getCursor(), gen = cm.changeGeneration();
@@ -2989,14 +3015,15 @@ function showCtx(x, y, items) {
 async function editorMenu(e) {
   e.preventDefault();
   const x = e.clientX, y = e.clientY;
-  let tinfo = { in_table: false };
+  let tinfo = { in_table: false }, hinfo = { in_table: false };
   if (!doc.readonly) {
     const pos = cm.somethingSelected() ? cm.getCursor() : cm.coordsChar({ left: x, top: y }, 'window');
     if (!cm.somethingSelected()) cm.setCursor(pos);                      // 右クリックした場所へカーソルを置く（表の操作は、カーソルの位置で行う）
     if (cm.getLine(pos.line).includes('|')) { try { tinfo = await api.table_info(cm.getValue(), pos.line, pos.ch); } catch (err) { /* 表でないものとして出す */ } }
+    if (!tinfo.in_table && /<table\b/i.test(cm.getValue())) { try { hinfo = await api.html_table_info(cm.getValue(), pos.line, pos.ch); } catch (err) { /* 表でないものとして出す */ } }
   }
   const sel = !!cm.getSelection(), h = cm.historySize(), ro = doc.readonly;
-  showCtx(x, y, [...(tinfo.in_table ? tableMenuItems(tinfo) : []),
+  showCtx(x, y, [...(tinfo.in_table ? tableMenuItems(tinfo) : []), ...(hinfo.in_table ? htmlTableMenuItems(hinfo) : []),
     { label: '元に戻す', key: 'Ctrl+Z', disabled: ro || !h.undo, run: () => { cm.undo(); cm.focus(); } },
     { label: 'やり直し', key: 'Ctrl+Y', disabled: ro || !h.redo, run: () => { cm.redo(); cm.focus(); } },
     '-',
