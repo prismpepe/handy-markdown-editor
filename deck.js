@@ -17,6 +17,7 @@
   const nearestLaser = n => LASER_SIZES.reduce((b, x) => Math.abs(x - n) < Math.abs(b - n) ? x : b, LASER_SIZES[0]);
   let laserUnits = Math.min(160, Math.max(10, Number(cfg.laser) || 30));
   let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 1, ptr = { x: 0, y: 0 };
+  let presenterOn = false;                                           // 聴衆の画面から見て、発表者ビューが開いているか（開いていなければ、1 画面。枠のかわりに、右下の地図を出す）
   let zc = { u: 0.5, v: 0.5 }, zgrab = null;                        // 拡大の枠の中心（スライド上の 0〜1）と、枠をつかんで動かしている間の状態
   let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
   const sync = () => { if (role !== 'standalone' && window.pywebview && window.pywebview.api && window.pywebview.api.sync) window.pywebview.api.sync(JSON.stringify({ i: idx, black: black, ratio: ratioKey })); };
@@ -97,11 +98,13 @@
     if (!zoomOn || zoomK <= 1.01 || overviewOn) return null;
     let c = null;
     if (role === 'presenter') { const inner = document.querySelector('#presenter .cur-pane .inner'); if (inner) c = inner.getBoundingClientRect(); }
-    else if (role === 'standalone') { const m = zmapEl(); c = m.getBoundingClientRect(); }
+    else if (alone()) { const m = zmapEl(); c = m.getBoundingClientRect(); }
     if (!c || !c.width) return null;
     const h = halfExtent(), ex = Math.min(0.5, h.x), ey = Math.min(0.5, h.y);
     return { c: c, left: c.left + (zc.u - ex) * c.width, top: c.top + (zc.v - ey) * c.height, right: c.left + (zc.u + ex) * c.width, bottom: c.top + (zc.v + ey) * c.height };
   }
+  // 1 画面で操作する画面か（枠の地図を出し、つかんで動かせる）。PDF 書き出しなどの単独の画面と、発表者ビューの無い聴衆の画面
+  const alone = () => role === 'standalone' || (role === 'audience' && !presenterOn);
   function zmapEl() {
     let m = document.getElementById('zmap');
     if (!m) {
@@ -119,9 +122,9 @@
     return f;
   }
   function drawFrame() {
-    if (role === 'audience') return;
+    if (role === 'audience' && presenterOn) { const z = document.getElementById('zmap'); if (z) z.style.display = 'none'; return; }
     const f = frameEl(), want = zoomOn && zoomK > 1.01 && !overviewOn;
-    if (role === 'standalone') {
+    if (alone()) {
       const m = zmapEl(), hide = !want || (document.body.classList.contains('idle') && !zgrab);        // 1 画面のときの地図は、マウスが止まれば消える
       m.style.display = hide ? 'none' : 'block'; f.style.display = 'none';
       if (hide) return;
@@ -137,7 +140,7 @@
   const GRAB_BAND = 9;
   function onFrameEdge(x, y) {
     const b = frameBox(); if (!b) return false;
-    if (role === 'standalone') return x >= b.c.left && x <= b.c.right && y >= b.c.top && y <= b.c.bottom;
+    if (alone()) return x >= b.c.left && x <= b.c.right && y >= b.c.top && y <= b.c.bottom;
     const o = x >= b.left - GRAB_BAND && x <= b.right + GRAB_BAND && y >= b.top - GRAB_BAND && y <= b.bottom + GRAB_BAND;
     const i = x > b.left + GRAB_BAND && x < b.right - GRAB_BAND && y > b.top + GRAB_BAND && y < b.bottom - GRAB_BAND;
     return o && !i;
@@ -548,7 +551,10 @@
     show(idx, true);
     slides.forEach((s, i) => { const n = document.createElement('div'); n.className = 'slide-num'; n.textContent = String(i + 1); s.appendChild(n); });
     setInterval(tick, 500);
-    setInterval(() => { if (role === 'standalone') drawFrame(); }, 400);            // 1 画面のときの地図は、マウスが止まれば消える
+    setInterval(() => { if (alone()) drawFrame(); }, 400);            // 1 画面のときの地図は、マウスが止まれば消える
+    if (role === 'audience') setInterval(() => {                                    // 発表者ビューが開いているかを、Python に聞く（O キーで、あとから開くこともある）
+      try { const a = window.pywebview && window.pywebview.api; if (a && a.has_presenter) a.has_presenter().then(v => { const was = presenterOn; presenterOn = !!v; if (was !== presenterOn) drawFrame(); }); } catch (e) { /* 聞けなければ、そのまま */ }
+    }, 700);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
     window.addEventListener('load', fitAll);
     document.querySelectorAll('img').forEach(im => { if (!im.complete) im.addEventListener('load', fitAll); });
@@ -559,8 +565,8 @@
       const l = $('laser'); l.style.left = e.clientX + 'px'; l.style.top = e.clientY + 'px';
       if (role !== 'presenter') l.style.visibility = '';                                   // 手元から消された点も、この画面のマウスが動けば、また出る
       if (role === 'presenter' && laserOn) pointerToAudience(e);
-      if (!zgrab) document.body.classList.toggle('zgrab', zoomOn && role !== 'audience' && onFrameEdge(e.clientX, e.clientY));       // 枠の縁の上では、移動の形のカーソルにする
-      if (role === 'standalone') setTimeout(drawFrame, 0);
+      if (!zgrab) document.body.classList.toggle('zgrab', zoomOn && onFrameEdge(e.clientX, e.clientY));       // 枠の縁の上では、移動の形のカーソルにする
+      if (alone()) setTimeout(drawFrame, 0);
       document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
     });
     $('stage').addEventListener('click', e => { if (suppressClick) { suppressClick = false; return; } if (e.button === 0 && !overviewOn) { if (!zoomOn) next(); } });
@@ -569,10 +575,10 @@
     // 書き込み: レーザーポインター（L）が入っているときだけ。左ボタンのドラッグ（5px 以上動いたら始まる）。動かさずに離せば、ふつうのクリック（次へ）
     const inDrawArea = t => role === 'presenter' ? !!(t.closest && t.closest('#presenter .cur-pane')) : !!(t.closest && t.closest('#stage'));
     document.addEventListener('mousedown', e => {
-      if (zoomOn && !laserOn && e.button === 0 && !overviewOn && !$('help').classList.contains('on') && role !== 'audience' && onFrameEdge(e.clientX, e.clientY)) {
+      if (zoomOn && !laserOn && e.button === 0 && !overviewOn && !$('help').classList.contains('on') && onFrameEdge(e.clientX, e.clientY)) {
         const b = frameBox(), u = (e.clientX - b.c.left) / b.c.width, v = (e.clientY - b.c.top) / b.c.height;
         const inside = e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
-        zgrab = role === 'standalone' && !inside ? { du: 0, dv: 0 } : { du: u - zc.u, dv: v - zc.v };           // つかんだ位置と中心の差を保つ（飛ばない）。地図の枠の外は、その点が中心になる
+        zgrab = alone() && !inside ? { du: 0, dv: 0 } : { du: u - zc.u, dv: v - zc.v };           // つかんだ位置と中心の差を保つ（飛ばない）。地図の枠の外は、その点が中心になる
         if (zgrab.du === 0 && zgrab.dv === 0) { setFrame(u, v); sendFrame(true); }
         document.body.classList.add('zgrab'); e.preventDefault();
         return;

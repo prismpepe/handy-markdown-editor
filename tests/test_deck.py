@@ -265,7 +265,7 @@ def test_PDFにする内容が正しくなければ_作らない(tmp_path):
 def test_橋渡しの属性は_JavaScriptに出ない():
     b = deck._Bridge(deck.DeckHost(lambda n: n), "audience")
     public = [n for n in dir(b) if not n.startswith("_")]
-    assert sorted(public) == ["close_all", "open_presenter", "sync", "toggle_fullscreen"]
+    assert sorted(public) == ["close_all", "has_presenter", "open_presenter", "sync", "toggle_fullscreen"]
 
 
 def test_部品の読み込み():

@@ -477,6 +477,7 @@ def drive():
     fr = "(() => { const f = document.getElementById('zframe'), r = document.querySelector('#presenter .cur-pane .inner').getBoundingClientRect(), b = f.getBoundingClientRect(); return [getComputedStyle(f).display, b.width / r.width, b.height / r.height, (b.left + b.width / 2 - r.left) / r.width, (b.top + b.height / 2 - r.top) / r.height]; })()"
     f0 = pres.evaluate_js(fr)
     check("発表者ビューに、拡大している範囲が、枠で出る（大きさは、スライドの 1/倍率。中心は、スライドの中央）", [f0[0], abs(f0[1] - 1 / 1.9) < 0.02, abs(f0[2] - 1 / 1.9) < 0.02, abs(f0[3] - 0.5) < 0.02, abs(f0[4] - 0.5) < 0.02], ['block', True, True, True, True])
+    check("発表者ビューがあるときは、聴衆の画面に、地図を出さない", aud.evaluate_js("!document.getElementById('zmap') || getComputedStyle(document.getElementById('zmap')).display === 'none'"), True)
     tr0 = aud.evaluate_js("document.getElementById('scaler').style.transform")
     pres.evaluate_js(mv % ("0.9", "0.9")); time.sleep(.6)
     check("マウスを動かしただけでは、拡大の位置は動かない（追従しない）", [aud.evaluate_js("document.getElementById('scaler').style.transform"), pres.evaluate_js("Deck.state().zc")], [tr0, [0.5, 0.5]])
@@ -571,6 +572,29 @@ def drive():
     api._deck.take_error = _orig_take
     check("動き出さない画面は、時間内に閉じ、知らせを返す（閉じられない真っ黒な窓を残さない）", [list(api._deck._windows), len(seen) == 1 and '読み込めませんでした' in seen[0]], [[], True])
     _deckmod.LOAD_TIMEOUT = _old_timeout
+
+    # --- 発表者ビューの無い 1 画面の発表（聴衆の画面だけ。実際の 1 画面の発表と同じ経路）: 右下に、拡大の地図が出る
+    r1 = api.deck_open(html, {'screen': 0, 'presenter': False, 'fullscreen': False, 'title': '1画面'})
+    check("1 画面の発表を始める（聴衆の画面だけ）", [r1['error'], r1['windows']], [None, ['audience']])
+    a1 = api._deck._windows['audience']
+    wait("!!(window.Deck && window.Deck.state)", 25, a1); time.sleep(1.5)                  # 発表者ビューが無いことを、Python に聞くまで待つ
+    key(a1, 'z'); time.sleep(.3)
+    a1.evaluate_js(drag1 % (0.1, 0.1, 0.35, 0.35, 0.35, 0.35)); time.sleep(.5)
+    a1.evaluate_js("document.dispatchEvent(new MouseEvent('mousemove', {clientX: innerWidth / 2, clientY: innerHeight / 2, bubbles: true}))"); time.sleep(.6)
+    z0 = a1.evaluate_js("Deck.state()")
+    check("1 画面の聴衆の画面で、範囲を囲んで拡大すると、右下に地図が出る", [z0['role'], z0['zk'] > 2, a1.evaluate_js("[getComputedStyle(document.getElementById('zmap')).display, document.getElementById('zmapf').offsetWidth > 0]")], ['audience', True, ['block', True]])
+    tr0 = a1.evaluate_js("document.getElementById('scaler').style.transform")
+    a1.evaluate_js(mapg % (z0['zc'][0], z0['zc'][1], 0.7, 0.6, 0.7, 0.6)); time.sleep(.5)
+    z1 = a1.evaluate_js("Deck.state()")
+    check("1 画面の聴衆の画面で、地図の枠をつかんで動かすと、拡大の位置が動く", [abs(z1['zc'][0] - 0.7) < 0.03, abs(z1['zc'][1] - 0.6) < 0.03, a1.evaluate_js("document.getElementById('scaler').style.transform") != tr0], [True, True, True])
+    a1.evaluate_js("document.dispatchEvent(new MouseEvent('mousemove', {clientX: 5, clientY: 5, bubbles: True}))".replace('True', 'true')); time.sleep(.4)
+    check("マウスを動かしても、拡大の位置は動かない", a1.evaluate_js("Deck.state().zc"), z1['zc'])
+    time.sleep(3.2)
+    check("マウスが止まって数秒たつと、地図は消える", a1.evaluate_js("getComputedStyle(document.getElementById('zmap')).display"), 'none')
+    a1.evaluate_js("document.dispatchEvent(new MouseEvent('mousemove', {clientX: innerWidth / 2, clientY: innerHeight / 2, bubbles: true}))"); time.sleep(.6)
+    check("マウスを動かすと、地図がまた出る", a1.evaluate_js("getComputedStyle(document.getElementById('zmap')).display"), 'block')
+    api._deck.close(); time.sleep(1)
+    check("1 画面の発表を閉じる", list(api._deck._windows), [])
 
     # --- PDF
     out_slides, out_hand = os.path.join(tmp, 's.pdf'), os.path.join(tmp, 'h.pdf')

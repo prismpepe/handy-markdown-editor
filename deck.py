@@ -250,6 +250,10 @@ class _Bridge:
     def sync(self, state_json):
         self._host._relay(self._role, state_json)
 
+    def has_presenter(self):
+        """発表者ビューが開いているか（聴衆の画面が、1 画面か 2 画面かを知るため。1 画面なら、拡大の地図を、聴衆の画面に出す）。"""
+        return "presenter" in self._host._windows
+
     def toggle_fullscreen(self):
         w = self._host._windows.get(self._role)
         if w is not None:
