@@ -196,7 +196,7 @@
   }
   let lastFrameSend = 0;
   function sendFrame(force) {
-    if (role !== 'presenter') return;
+    if (role === 'standalone') return;
     const now = Date.now(); if (!force && now - lastFrameSend < 30) return; lastFrameSend = now;
     send({ zk: zoomK, zc: [zc.u, zc.v] });
   }
@@ -545,7 +545,7 @@
     else if (k === 'z' || k === 'Z') {
       zoomOn = !zoomOn; zoomK = 1; zc = { u: 0.5, v: 0.5 }; applyTransform();                    // 入れた直後は、等倍（ドラッグで範囲を選べる）。切って入れ直すと、等倍に戻る
       toast(zoomOn ? '部分拡大: 入（等倍から。ドラッグで範囲を選ぶ・ホイールで倍率）' : '部分拡大: 切');
-      if (role === 'presenter') send({ zoom: zoomOn, zk: zoomK, zc: [zc.u, zc.v] });
+      send({ zoom: zoomOn, zk: zoomK, zc: [zc.u, zc.v] });
     }
     else if (k === 'r' || k === 'R') setRatio(RATIOS[(RATIOS.findIndex(r => r[0] === ratioKey) + 1) % RATIOS.length][0]);
     else if (k === 'm' || k === 'M') cyclePenTool();
@@ -574,6 +574,12 @@
       if (typeof s.laser === 'boolean') { laserOn = s.laser; document.body.classList.toggle('laser', laserOn); }              // レーザー（と書き込み）の入切は、両方の画面で同じ
       if (typeof s.lz === 'number' && role === 'presenter') setLaser(s.lz, true);
       if (typeof s.va === 'number' && s.va > 0.2 && s.va < 8 && role === 'presenter') { audAspect = s.va; drawFrame(); }
+      if (role === 'presenter' && (typeof s.zk === 'number' || Array.isArray(s.zc) || typeof s.zoom === 'boolean')) {         // 聴衆の画面で変えた拡大（囲み・ホイール・Z）
+        if (typeof s.zoom === 'boolean') zoomOn = s.zoom;
+        if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1, s.zk));
+        if (Array.isArray(s.zc) && s.zc.length === 2 && typeof s.zc[0] === 'number' && typeof s.zc[1] === 'number') zc = clampCenter(s.zc[0], s.zc[1]);
+        drawFrame();
+      }
       if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
         if (typeof s.lz === 'number') setLaser(s.lz, true);
         if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1, s.zk));

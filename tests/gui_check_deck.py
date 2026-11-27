@@ -522,6 +522,12 @@ def drive():
     check("拡大中にドラッグすると、その範囲が拡大される（4 倍前後。枠の中心は、その範囲の中心）", [3 < zs[0] <= 5, abs(zs[1][0] - 0.375) < 0.03 and abs(zs[1][1] - 0.35) < 0.03, zs[2]], [True, True, True])
     ct = aud.evaluate_js("(() => { const s = document.getElementById('scaler').getBoundingClientRect(), v = [innerWidth / 2, innerHeight / 2]; return [(v[0] - s.left) / s.width, (v[1] - s.top) / s.height]; })()")
     check("拡大した範囲の中心が、窓の中心にくる（スライドの 0.375・0.35 付近）", [abs(ct[0] - 0.375) < 0.03, abs(ct[1] - 0.35) < 0.03], [True, True])
+    # 聴衆の画面（2 つ目の画面）で直接囲んだり、ホイールを回したりしても、発表者ビューの枠が合う（双方向）
+    aud.evaluate_js(drag1 % (0.1, 0.1, 0.3, 0.3, 0.3, 0.3)); time.sleep(.9)
+    za, zp = aud.evaluate_js("Deck.state()"), pres.evaluate_js("Deck.state()")
+    check("聴衆の画面で範囲を囲むと、発表者ビューの枠も、同じ位置・倍率になる", [abs(za['zc'][0] - zp['zc'][0]) < 0.02, abs(za['zc'][1] - zp['zc'][1]) < 0.02, abs(za['zk'] - zp['zk']) < 0.02, pres.evaluate_js("getComputedStyle(document.getElementById('zframe')).display")], [True, True, True, 'block'])
+    aud.evaluate_js("document.dispatchEvent(new WheelEvent('wheel', {deltaY: -100, bubbles: true, cancelable: true}))"); time.sleep(.8)
+    check("聴衆の画面でホイールを回すと、発表者ビューの倍率も変わる", aud.evaluate_js("Deck.state().zk"), pres.evaluate_js("Deck.state().zk"))
     key(pres, "l"); time.sleep(.6)
     zk0, ink0 = aud.evaluate_js("Deck.state().zk"), st(pres)['inkAll']
     pres.evaluate_js(rp % (0.1, 0.1, 0.3, 0.3, 0.3, 0.3)); time.sleep(.8)
