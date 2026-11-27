@@ -119,9 +119,9 @@ def wait(code, timeout=20, win=None):
     return False
 
 
-def build(theme='light', ratio='16:9', from_cursor=False):
-    js("window.__b = null; api.deck_prepare(null).then(a => deckBuild({theme: %s, ratio: %s, fromCursor: %s, assets: a.assets, title: 't'})).then(b => { window.__b = b; });" % (
-        json.dumps(theme), json.dumps(ratio), 'true' if from_cursor else 'false'))
+def build(theme='light', ratio='16:9', from_cursor=False, zmap=False):
+    js("window.__b = null; api.deck_prepare(null).then(a => deckBuild({theme: %s, ratio: %s, fromCursor: %s, zmap: %s, assets: a.assets, title: 't'})).then(b => { window.__b = b; });" % (
+        json.dumps(theme), json.dumps(ratio), 'true' if from_cursor else 'false', 'true' if zmap else 'false'))
     wait("window.__b !== null", 40)
     return js("window.__b.html"), json.loads(js("JSON.stringify({count: window.__b.count, start: window.__b.start, warnings: window.__b.warnings})"))
 
@@ -635,6 +635,24 @@ def drive():
     api._deck.close(); time.sleep(1)
     check("1 画面の発表を閉じる", list(api._deck._windows), [])
 
+    # --- 設定で、発表者ビューがあるときも、聴衆の画面に、拡大の地図を出す
+    html_z, _ = build(zmap=True)
+    rz = api.deck_open(html_z, {'screen': 0, 'presenter': True, 'fullscreen': False, 'title': '地図つき'})
+    check("地図の設定を付けて、聴衆と発表者ビューの 2 つで発表を始める", [rz['error'], rz['windows']], [None, ['audience', 'presenter']])
+    wz = api._deck._windows
+    wait("!!(window.Deck && window.Deck.state)", 25, wz['audience']); wait("!!(window.Deck && window.Deck.state)", 25, wz['presenter']); time.sleep(1.8)
+    az, pz = wz['audience'], wz['presenter']
+    key(az, 'z'); time.sleep(.3)
+    az.evaluate_js(drag1 % (0.1, 0.1, 0.35, 0.35, 0.35, 0.35)); time.sleep(.6)
+    az.evaluate_js("document.dispatchEvent(new MouseEvent('mousemove', {clientX: innerWidth / 2, clientY: innerHeight / 2, bubbles: true}))"); time.sleep(.8)
+    check("発表者ビューがあっても、設定すれば、聴衆の画面に地図が出る（発表者ビューにも枠が出る）", [az.evaluate_js("getComputedStyle(document.getElementById('zmap')).display"), pz.evaluate_js("getComputedStyle(document.getElementById('zframe')).display")], ['block', 'block'])
+    zq = az.evaluate_js("Deck.state().zc")
+    az.evaluate_js(mapg % (zq[0], zq[1], 0.7, 0.6, 0.7, 0.6)); time.sleep(.8)
+    za2, zp2 = az.evaluate_js("Deck.state().zc"), pz.evaluate_js("Deck.state().zc")
+    check("聴衆の画面の地図の枠をつかんで動かすと、拡大の位置が動き、発表者ビューの枠も同じ位置になる", [abs(za2[0] - 0.7) < 0.03, abs(za2[1] - 0.6) < 0.03, abs(za2[0] - zp2[0]) < 0.02, abs(za2[1] - zp2[1]) < 0.02], [True] * 4)
+    api._deck.close(); time.sleep(1)
+    check("地図つきの発表を閉じる", list(api._deck._windows), [])
+
     # --- PDF
     out_slides, out_hand = os.path.join(tmp, 's.pdf'), os.path.join(tmp, 'h.pdf')
     rs = api.deck_export_pdf(html, 'slides', out_slides)
@@ -655,7 +673,7 @@ def drive():
     time.sleep(3)
     check("ダイアログの項目（画面・テーマ・比率・開始・発表者ビュー）", all(t in js("window.__form") for t in ('発表を出す画面', 'デザイン（テーマ）', '画面の比率', '開始', '発表者ビュー', 'レーザーポインターの大きさ')), True)
     check("開いたウィンドウに、スライドが入っている", bool(api._deck._windows) and wait("!!(window.Deck && window.Deck.state)", 20, api._deck._windows['audience']), True)
-    check("選んだ設定が、次回の既定として保存される", sorted(api.get_prefs().get('deck', {}).keys()), ['laser', 'presenter', 'ratio', 'screen', 'theme'])
+    check("選んだ設定が、次回の既定として保存される", sorted(api.get_prefs().get('deck', {}).keys()), ['laser', 'presenter', 'ratio', 'screen', 'theme', 'zmap'])
     check("発表中は、「発表」ボタンが押せなくなる", wait("document.getElementById('bDeck').disabled === true", 10), True)
     api._deck.close()
     check("発表を終えると、「発表」ボタンがまた押せる", wait("document.getElementById('bDeck').disabled === false", 10), True)

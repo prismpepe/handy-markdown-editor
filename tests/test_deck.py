@@ -287,6 +287,8 @@ def test_設定の検査():
     assert ok == {"deck": {"theme": "dark", "ratio": "4:3", "presenter": True, "screen": 1}}
     assert uiprefs.clean_prefs({"deck": {"ratio": "9:16", "presenter": "yes", "screen": 99, "theme": ""}}) == {}
     assert uiprefs.clean_prefs({"deck": {"screen": True}}) == {}
+    assert uiprefs.clean_prefs({"deck": {"zmap": True}}) == {"deck": {"zmap": True}}          # 聴衆の画面にも、拡大の地図を出す設定
+    assert uiprefs.clean_prefs({"deck": {"zmap": "yes"}}) == {}
     assert uiprefs.clean_prefs({"deck": "x"}) == {}
 
 

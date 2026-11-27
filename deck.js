@@ -142,7 +142,7 @@
     return { c: c, left: c.left + (zc.u - ex) * c.width, top: c.top + (zc.v - ey) * c.height, right: c.left + (zc.u + ex) * c.width, bottom: c.top + (zc.v + ey) * c.height };
   }
   // 1 画面で操作する画面か（枠の地図を出し、つかんで動かせる）。PDF 書き出しなどの単独の画面と、発表者ビューの無い聴衆の画面
-  const alone = () => role === 'standalone' || (role === 'audience' && !presenterOn);
+  const alone = () => role === 'standalone' || (role === 'audience' && (!presenterOn || cfg.zmap === true));       // 設定で、発表者ビューがあるときも、聴衆の画面に地図を出せる
   function zmapEl() {
     let m = document.getElementById('zmap');
     if (!m) {
@@ -162,7 +162,7 @@
     return f;
   }
   function drawFrame() {
-    if (role === 'audience' && presenterOn) { const z = document.getElementById('zmap'); if (z) z.style.display = 'none'; return; }
+    if (role === 'audience' && presenterOn && cfg.zmap !== true) { const z = document.getElementById('zmap'); if (z) z.style.display = 'none'; return; }
     const f = frameEl(), want = zoomOn && zoomK > 1.01 && !overviewOn;
     if (alone()) {
       const m = zmapEl(), hide = !want || (!zgrab && !mapHover && Date.now() - mapActive > 5000);        // 1 画面のときの地図は、マウスが 5 秒止まれば消える（地図の上にいる間は消えない）

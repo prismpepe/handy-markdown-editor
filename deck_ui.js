@@ -77,7 +77,7 @@ async function buildDeckHtml(opts) {
     + assets.css + '\n' + collectExportCss() + '\n' + katexCss + '\n/* テーマ */\n' + themeCss + '\n</style>\n</head>\n<body>\n'
     + '<div id="stage"><div id="scaler">\n' + body + '\n</div></div>\n'
     + '<div id="hud"><i id="hudbar"></i></div><div id="toast"></div><div id="screen"></div><div id="laser"></div><div id="help"></div><div id="overview"></div><div id="presenter"></div><div id="printroot"></div>\n'
-    + '<script>window.DECK = {role: "__DECK_ROLE__", t0: "__DECK_T0__", ratio: ' + deckJson(opts.ratio) + ', laser: ' + (parseInt(opts.laser, 10) || 30) + ', start: ' + start + ', title: ' + deckJson(title) + '};<\/script>\n'
+    + '<script>window.DECK = {role: "__DECK_ROLE__", t0: "__DECK_T0__", ratio: ' + deckJson(opts.ratio) + ', laser: ' + (parseInt(opts.laser, 10) || 30) + ', zmap: ' + (opts.zmap === true ? 'true' : 'false') + ', start: ' + start + ', title: ' + deckJson(title) + '};<\/script>\n'
     + '<script>\n' + assets.js.replace(/<\/script/gi, '<\\/script') + '\n<\/script>\n</body>\n</html>\n';
   return { html, warnings, count: slides.length, start };
 }
@@ -124,6 +124,10 @@ function deckForm(info, prefs, canCursor) {
   cb.checked = typeof prefs.presenter === 'boolean' ? prefs.presenter : screens.length >= 2;
   lab.appendChild(cb); lab.appendChild(document.createTextNode('手元の画面に発表者ビュー（次のスライド・ノート・タイマー）を開く'));
   box.appendChild(lab);
+  const lab2 = document.createElement('label'); lab2.style.cssText = 'grid-column:1 / 3;display:flex;gap:8px;align-items:center';
+  const cb2 = document.createElement('input'); cb2.type = 'checkbox'; cb2.id = 'dkZmap'; cb2.checked = prefs.zmap === true;
+  lab2.appendChild(cb2); lab2.appendChild(document.createTextNode('聴衆の画面にも、部分拡大の地図（右下の小さな画面）を出す（発表者ビューを開いているとき。開いていなければ、いつも出ます）'));
+  box.appendChild(lab2);
   return box;
 }
 
@@ -185,10 +189,10 @@ async function startPresentation() {
         [{ label: '発表を始める', primary: true }, { label: '保存（PDF・HTML）…' }, { label: 'テーマの見本を作る' }, { label: 'キャンセル' }], form);
       const val = id => document.getElementById(id) ? document.getElementById(id).value : '';
       const opts = { theme: val('dkTheme') || 'light', ratio: val('dkRatio') || '16:9', fromCursor: val('dkStart') === 'cursor',
-        screen: parseInt(val('dkScreen'), 10), presenter: !!(document.getElementById('dkPresenter') || {}).checked, assets: info.assets, title: deckTitle(), laser: parseInt(val('dkLaser'), 10) || 30 };
+        screen: parseInt(val('dkScreen'), 10), presenter: !!(document.getElementById('dkPresenter') || {}).checked, zmap: !!(document.getElementById('dkZmap') || {}).checked, assets: info.assets, title: deckTitle(), laser: parseInt(val('dkLaser'), 10) || 30 };
       if (i === 3 || i < 0) return;
       // 選んだ内容は、次回の初期値にする
-      api.set_prefs({ deck: { theme: opts.theme, ratio: opts.ratio, presenter: opts.presenter, screen: Number.isInteger(opts.screen) ? opts.screen : -1, laser: opts.laser } });
+      api.set_prefs({ deck: { theme: opts.theme, ratio: opts.ratio, presenter: opts.presenter, zmap: opts.zmap, screen: Number.isInteger(opts.screen) ? opts.screen : -1, laser: opts.laser } });
       if (i === 2) {
         const r = await api.deck_make_theme(DECK_HOST.docPath());
         if (r.error) DECK_HOST.say(r.error);

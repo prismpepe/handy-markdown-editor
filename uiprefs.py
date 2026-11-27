@@ -163,6 +163,8 @@ def clean_deck(value):
         out["ratio"] = value["ratio"]
     if isinstance(value.get("presenter"), bool):
         out["presenter"] = value["presenter"]
+    if isinstance(value.get("zmap"), bool):
+        out["zmap"] = value["zmap"]
     screen = value.get("screen")
     if isinstance(screen, int) and not isinstance(screen, bool) and -1 <= screen <= 16:
         out["screen"] = screen
