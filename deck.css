@@ -51,6 +51,7 @@ body { font-family: "Yu Gothic UI", "Segoe UI", sans-serif; -webkit-user-select:
 #laser { position: fixed; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; z-index: 25; pointer-events: none; display: none;
   background: radial-gradient(circle, #ff3030 0 35%, rgba(255, 48, 48, .55) 55%, rgba(255, 48, 48, 0) 72%); }
 body.laser #laser { display: block; }
+body.zgrab, body.zgrab * { cursor: move !important; }          /* 拡大の枠の縁の上（つかめる） */
 body.laser, body.laser #stage, body.idle, body.idle #stage { cursor: none; }
 #help { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(0, 0, 0, .78); }
 #help.on { display: flex; }

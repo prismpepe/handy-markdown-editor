@@ -455,18 +455,15 @@ class DeckHost:
             safe["black"] = state["black"]
         if state.get("ratio") in ("16:9", "16:10", "4:3", "auto"):
             safe["ratio"] = state["ratio"]
-        for key in ("laser", "zoom", "zh"):
+        for key in ("laser", "zoom"):
             if isinstance(state.get(key), bool):
                 safe[key] = state[key]
         zk = state.get("zk")
         if isinstance(zk, (int, float)) and not isinstance(zk, bool):
             safe["zk"] = min(5.0, max(1.0, float(zk)))
-        zr = state.get("zr")
-        if isinstance(zr, list) and len(zr) == 4 and all(isinstance(q, (int, float)) and not isinstance(q, bool) and -0.5 <= q <= 1.5 for q in zr):
-            safe["zr"] = [float(q) for q in zr]
-        zg = state.get("zg")
-        if isinstance(zg, (int, float)) and not isinstance(zg, bool):
-            safe["zg"] = min(1.0, max(0.2, float(zg)))
+        zc = state.get("zc")                                           # 拡大の枠の中心（スライド上の 0〜1）
+        if isinstance(zc, list) and len(zc) == 2 and all(isinstance(q, (int, float)) and not isinstance(q, bool) and -0.5 <= q <= 1.5 for q in zc):
+            safe["zc"] = [min(1.0, max(0.0, float(q))) for q in zc]
         for key in ("u", "v"):                                         # レーザー・拡大の位置（スライド上の 0〜1。スライドの外は null）
             if key in state:
                 val = state[key]
