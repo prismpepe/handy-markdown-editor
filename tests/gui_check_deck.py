@@ -237,6 +237,12 @@ def drive():
     ex = d.evaluate_js("(() => { const r = document.getElementById('scaler').getBoundingClientRect(), sc = Math.min(innerWidth / 1280, innerHeight / 720); const tx = (innerWidth - 1280 * sc) / 2, ty = (innerHeight - 720 * sc) / 2; return [Math.min(Math.abs(r.left), Math.abs(r.left - tx)) < 2, Math.min(Math.abs(r.top), Math.abs(r.top - ty)) < 2]; })()")
     check("地図の枠を、左上の外まで動かすと、スライドの左上の縁と角が、ちょうど画面に映る", ex, [True, True])
     key(d, 'z')
+    d.evaluate_js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'D', ctrlKey: true, shiftKey: true, bubbles: true}))"); time.sleep(.3)
+    d.evaluate_js("document.dispatchEvent(new MouseEvent('mousemove', {clientX: 300, clientY: 200, bubbles: true}))"); time.sleep(.3)
+    dg = d.evaluate_js("[getComputedStyle(document.getElementById('diag')).display, document.getElementById('diag').textContent.includes('devicePixelRatio'), document.getElementById('diagdot').style.left, document.getElementById('diagdot').style.top]")
+    check("Ctrl+Shift+D で、診断（倍率・窓の大きさ・マウスの位置）が出て、赤い輪が、ページが認識しているマウスの位置に付く", dg, ['block', True, '300px', '200px'])
+    d.evaluate_js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'D', ctrlKey: true, shiftKey: true, bubbles: true}))"); time.sleep(.2)
+    check("もう一度 Ctrl+Shift+D で閉じる", d.evaluate_js("getComputedStyle(document.getElementById('diag')).display"), 'none')
     key(d, '?'); check("? で操作の一覧", d.evaluate_js("document.getElementById('help').classList.contains('on')"), True); key(d, 'Escape')
     check("Esc で操作の一覧が閉じる", d.evaluate_js("document.getElementById('help').classList.contains('on')"), False)
 

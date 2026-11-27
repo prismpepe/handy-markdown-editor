@@ -1434,7 +1434,23 @@ class WindowKeeper:
             pass
 
 
+def set_dpi_mode():
+    """試験用: 環境変数 HANDY_MD_DPI=pm で、画面ごとの拡大率（Per-Monitor V2）に対応させる。
+
+    何も指定しなければ、これまでどおり（pywebview が、起動時にシステム DPI で動かす）。倍率の違う画面を並べた環境（100% と 150% など）で、
+    マウスの座標が、見えている位置とずれるとき（発表の 2 つ目の画面など）に試す。ウィンドウを作る前に呼ぶ。
+    """
+    if os.environ.get("HANDY_MD_DPI", "").strip().lower() not in ("pm", "permonitor", "per-monitor"):
+        return
+    try:
+        ctypes.windll.user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))       # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+    except Exception:
+        pass
+
+
 def main():
+    set_dpi_mode()
     args = sys.argv[1:]
     if args and args[0] == "--register":
         register_association()

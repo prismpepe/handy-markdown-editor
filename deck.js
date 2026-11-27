@@ -48,6 +48,37 @@
     send({ u: u, v: v });
   }
 
+  // ---- 診断（Ctrl+Shift+D）: 倍率の違う画面（150% など）で、マウスの位置が、見えている位置とずれるときの確認用。
+  // 赤い輪が、「ページが認識しているマウスの位置」。実際のカーソルと重なっていれば、座標は合っている
+  let diagOn = false;
+  function toggleDiag() {
+    diagOn = !diagOn;
+    let d = document.getElementById('diag'), c = document.getElementById('diagdot');
+    if (!d) {
+      d = document.createElement('pre'); d.id = 'diag';
+      d.style.cssText = 'position:fixed;left:8px;top:8px;z-index:60;margin:0;padding:6px 10px;background:rgba(0,0,0,.85);color:#fff;font:13px/1.5 Consolas,monospace;pointer-events:none;white-space:pre';
+      c = document.createElement('div'); c.id = 'diagdot';
+      c.style.cssText = 'position:fixed;z-index:61;width:28px;height:28px;margin:-14px 0 0 -14px;border:3px solid #f00;border-radius:50%;pointer-events:none;box-sizing:border-box';
+      document.body.appendChild(d); document.body.appendChild(c);
+    }
+    d.style.display = c.style.display = diagOn ? 'block' : 'none';
+    if (diagOn) drawDiag(null);
+  }
+  let diagLast = null;
+  function drawDiag(e) {
+    if (e) diagLast = e;
+    const d = document.getElementById('diag'), c = document.getElementById('diagdot'); if (!d) return;
+    const m = diagLast, vv = window.visualViewport;
+    let t = '役割 ' + role + '\n倍率 devicePixelRatio ' + window.devicePixelRatio + '\n窓の内側 ' + innerWidth + ' x ' + innerHeight + '　外側 ' + outerWidth + ' x ' + outerHeight
+      + '\n画面 ' + screen.width + ' x ' + screen.height + '（使える領域 ' + screen.availWidth + ' x ' + screen.availHeight + '）\n窓の位置 ' + window.screenX + ', ' + window.screenY + (vv ? '\nvisualViewport 倍率 ' + vv.scale : '');
+    if (m) {
+      t += '\nマウス（ページ）' + m.clientX + ', ' + m.clientY + '\nマウス（画面）' + m.screenX + ', ' + m.screenY
+        + '\n画面 − 窓の位置 − ページ = ' + (m.screenX - window.screenX - m.clientX) + ', ' + (m.screenY - window.screenY - m.clientY);
+      c.style.left = m.clientX + 'px'; c.style.top = m.clientY + 'px';
+    }
+    d.textContent = t + '\n（Ctrl+Shift+D で閉じる。赤い輪が、カーソルと重なるか）';
+  }
+
   function toast(text) {
     const t = $('toast'); t.textContent = text; t.classList.add('on');
     clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 1600);
@@ -580,6 +611,8 @@
     document.querySelectorAll('img').forEach(im => { if (!im.complete) im.addEventListener('load', fitAll); });
     window.addEventListener('resize', () => { layout(); if (ratioKey === 'auto') fitAll(); });
     document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) { toggleDiag(); e.preventDefault(); } });
+    document.addEventListener('mousemove', e => { if (diagOn) drawDiag(e); });
     document.addEventListener('mousemove', e => {
       ptr = { x: e.clientX, y: e.clientY };
       const l = $('laser'); l.style.left = e.clientX + 'px'; l.style.top = e.clientY + 'px';

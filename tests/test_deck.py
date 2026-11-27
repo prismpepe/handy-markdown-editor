@@ -405,3 +405,9 @@ def test_書き込みは受け渡す_ペンの状態も_決まった値だけ():
     h._windows["audience"].calls.clear()
     h._relay("presenter", json.dumps({"mk": {**mk, "c": "red"}, "pc": 99, "pt": -1}))
     assert h._windows["audience"].calls[0] == "window.Deck && window.Deck.apply({})"
+
+
+def test_DPI切り替えは_環境変数が無ければ何もしない(monkeypatch):
+    import mdeditor
+    monkeypatch.delenv("HANDY_MD_DPI", raising=False)
+    assert mdeditor.set_dpi_mode() is None
