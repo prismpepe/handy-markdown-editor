@@ -407,7 +407,19 @@ def test_書き込みは受け渡す_ペンの状態も_決まった値だけ():
     assert h._windows["audience"].calls[0] == "window.Deck && window.Deck.apply({})"
 
 
-def test_DPI切り替えは_環境変数が無ければ何もしない(monkeypatch):
+def test_DPI_既定では_画面ごとの拡大率に対応させ_systemで以前の動きに戻せる(monkeypatch):
     import mdeditor
     monkeypatch.delenv("HANDY_MD_DPI", raising=False)
-    assert mdeditor.set_dpi_mode() is None
+    calls = []
+    assert mdeditor.set_dpi_mode(setter=calls.append) == "permonitor" and calls == [-4]
+    calls.clear()
+    assert mdeditor.set_dpi_mode(env="system", setter=calls.append) == "system" and calls == []
+    assert mdeditor.set_dpi_mode(env="pm", setter=calls.append) == "permonitor"
+
+
+def test_DPI_設定に失敗しても_起動は止まらない():
+    import mdeditor
+
+    def boom(v):
+        raise OSError("denied")
+    assert mdeditor.set_dpi_mode(env="", setter=boom) == "permonitor"

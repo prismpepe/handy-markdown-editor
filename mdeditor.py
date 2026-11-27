@@ -1434,19 +1434,26 @@ class WindowKeeper:
             pass
 
 
-def set_dpi_mode():
-    """試験用: 環境変数 HANDY_MD_DPI=pm で、画面ごとの拡大率（Per-Monitor V2）に対応させる。
+def set_dpi_mode(env=None, setter=None):
+    """画面ごとの拡大率（Per-Monitor V2）に対応させる。ウィンドウを作る前に呼ぶ。戻り値は、選んだ方式（"permonitor" か "system"）。
 
-    何も指定しなければ、これまでどおり（pywebview が、起動時にシステム DPI で動かす）。倍率の違う画面を並べた環境（100% と 150% など）で、
-    マウスの座標が、見えている位置とずれるとき（発表の 2 つ目の画面など）に試す。ウィンドウを作る前に呼ぶ。
+    pywebview は、何も指定しないと、起動時に「システム DPI」で動かす。100% と 150% など、倍率の違う画面を並べると、倍率の違う画面で
+    マウスの座標が、見えている位置とずれる（発表の 2 つ目の画面で、囲んだ枠が、離れた場所に出た。実測: 100% ではずれず、150% でずれ、
+    この設定で、150% でもずれなくなった。倍率は 1 → 1.5 になり、文字も、ぼやけない）。そのため、既定で、画面ごとの拡大率に対応させる。
+    環境変数 HANDY_MD_DPI=system で、以前の動き（システム DPI）に戻せる。
     """
-    if os.environ.get("HANDY_MD_DPI", "").strip().lower() not in ("pm", "permonitor", "per-monitor"):
-        return
+    mode = (os.environ.get("HANDY_MD_DPI", "") if env is None else env).strip().lower()
+    if mode in ("system", "off", "0"):
+        return "system"
     try:
-        ctypes.windll.user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
-        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))       # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        if setter is None:
+            f = ctypes.windll.user32.SetProcessDpiAwarenessContext
+            f.argtypes = [ctypes.c_void_p]
+            setter = lambda v: f(ctypes.c_void_p(v))
+        setter(-4)                       # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
     except Exception:
         pass
+    return "permonitor"
 
 
 def main():
