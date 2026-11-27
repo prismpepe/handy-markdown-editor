@@ -17,6 +17,8 @@
   const nearestLaser = n => LASER_SIZES.reduce((b, x) => Math.abs(x - n) < Math.abs(b - n) ? x : b, LASER_SIZES[0]);
   let laserUnits = Math.min(160, Math.max(10, Number(cfg.laser) || 30));
   let W = 1280, scale = 1, black = '', laserOn = false, zoomOn = false, zoomK = 1, ptr = { x: 0, y: 0 };
+  let mapActive = 0, mapHover = false;                               // 1 画面の地図: 最後にマウスを動かした（拡大を変えた）時刻と、マウスが地図の上にあるか
+  let audAspect = 0;                                                 // 聴衆の画面の窓の縦横比（発表者ビューが、枠の大きさを決めるために使う）
   let presenterOn = false;                                           // 聴衆の画面から見て、発表者ビューが開いているか（開いていなければ、1 画面。枠のかわりに、右下の地図を出す）
   let zc = { u: 0.5, v: 0.5 }, zgrab = null;                        // 拡大の枠の中心（スライド上の 0〜1）と、枠をつかんで動かしている間の状態
   let overviewOn = false, sel = 0, numBuf = '', startTime = Number(cfg.t0) || Date.now(), noteSize = 22, lastWheel = 0, idleTimer = null;      // 経過時間は、発表を始めたとき（Python が決める。2 つのウィンドウで同じ）から数える
@@ -72,19 +74,24 @@
     if (!remote) { toast('ポインター・ペンの大きさ: ' + (LASER_SIZES.indexOf(nearestLaser(laserUnits)) + 1) + ' / ' + LASER_SIZES.length); send({ lz: laserUnits }); }
   }
   // ---- 部分拡大は、「スライド上の枠」（中心 zc と、大きさ = 1/倍率）で決める。マウスの位置から毎回は計算しない（縁まで映せる・解除で飛ばない）
-  // 枠の半分の大きさ（スライドに対する比率）。発表者ビューの枠は 1/(2k)。聴衆の画面は、窓の形で、映る範囲が少し違う
-  function halfExtent() {
-    if (role === 'presenter') return { x: 0.5 / zoomK, y: 0.5 / zoomK };
-    const vw = innerWidth, vh = innerHeight, sc = Math.min(vw / W, vh / H);
-    return { x: vw / (2 * zoomK * sc * W), y: vh / (2 * zoomK * sc * H) };
+  // 倍率 1 のとき、画面に映るスライドの範囲（スライドに対する比率）。窓の形がスライドと違うと、1 を超える（余白の分だけ、広く映る）。
+  // 発表者ビューは、聴衆の画面の窓の形（audAspect）で数える
+  function fit1() {
+    const a = role === 'presenter' ? audAspect : innerWidth / Math.max(1, innerHeight), r = W / H;
+    if (!(a > 0)) return { x: 1, y: 1 };
+    return a >= r ? { x: a / r, y: 1 } : { x: 1, y: r / a };
   }
+  // 枠の半分の大きさ（スライドに対する比率）。聴衆の画面に映る範囲そのもの
+  function halfExtent() { const f = fit1(); return { x: f.x / (2 * zoomK), y: f.y / (2 * zoomK) }; }
+  // 囲んだ範囲（スライドに対する比率 du・dv）が、画面いっぱいになる倍率
+  function fitK(du, dv) { const f = fit1(); return Math.round(Math.min(5, Math.max(1.1, Math.min(f.x / du, f.y / dv))) * 100) / 100; }
   function clampCenter(u, v) {                                         // 枠が、スライドの外へ出ないように（縁は、ちょうど届く）
     const h = halfExtent(), f = (c, e) => e >= 0.5 ? 0.5 : Math.min(1 - e, Math.max(e, c));
     return { u: f(u, h.x), v: f(v, h.y) };
   }
   function setFrame(u, v, k) {
     if (typeof k === 'number') zoomK = Math.min(5, Math.max(1, k));
-    zc = clampCenter(u, v); applyTransform();
+    zc = clampCenter(u, v); mapActive = Date.now(); applyTransform();
   }
   // 窓の座標を、スライド上の位置（0〜1）にする。拡大中の画面の上の点も、拡大前に戻して数える
   function viewportToSlide(p) {
@@ -109,11 +116,13 @@
     let m = document.getElementById('zmap');
     if (!m) {
       m = document.createElement('div'); m.id = 'zmap';
-      m.style.cssText = 'position:fixed;right:16px;bottom:16px;width:176px;z-index:30;border:1px solid rgba(255,255,255,.8);background:rgba(0,0,0,.55);display:none;cursor:move';
+      m.addEventListener('mouseenter', () => { mapHover = true; }); m.addEventListener('mouseleave', () => { mapHover = false; });
+      m.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:30;border:2px solid #333;box-shadow:0 2px 14px rgba(0,0,0,.7);background:#000;overflow:hidden;display:none;cursor:move';
       m.innerHTML = '<div id="zmapf" style="position:absolute;border:2px solid #ffd43b;background:rgba(255,212,59,.22);box-sizing:border-box;pointer-events:none"></div>';
       document.body.appendChild(m);
     }
-    m.style.height = Math.round(176 * H / W) + 'px';
+    const mw = Math.round(Math.min(480, Math.max(240, innerWidth * 0.24)));                // 画面の 24%（240〜480px）。小さすぎると、枠をつかめない
+    m.style.width = mw + 'px'; m.style.height = Math.round(mw * H / W) + 'px';
     return m;
   }
   function frameEl() {
@@ -125,10 +134,19 @@
     if (role === 'audience' && presenterOn) { const z = document.getElementById('zmap'); if (z) z.style.display = 'none'; return; }
     const f = frameEl(), want = zoomOn && zoomK > 1.01 && !overviewOn;
     if (alone()) {
-      const m = zmapEl(), hide = !want || (document.body.classList.contains('idle') && !zgrab);        // 1 画面のときの地図は、マウスが止まれば消える
+      const m = zmapEl(), hide = !want || (!zgrab && !mapHover && Date.now() - mapActive > 5000);        // 1 画面のときの地図は、マウスが 5 秒止まれば消える（地図の上にいる間は消えない）
       m.style.display = hide ? 'none' : 'block'; f.style.display = 'none';
       if (hide) return;
       const fb = frameBox(), mf = document.getElementById('zmapf'); if (!fb) return;
+      // 地図に、いまのスライドの縮小画像を入れる（どのスライドの、どこが映っているかが分かる。スライドや大きさが変わったときだけ作り直す）
+      const mw = m.offsetWidth, key = idx + '|' + W + '|' + mw;
+      if (m.dataset.thumb !== key && slides[idx]) {
+        const old = m.querySelector('.zthumb'); if (old) old.remove();
+        const t = document.createElement('div'); t.className = 'zthumb';
+        t.style.cssText = 'position:absolute;left:0;top:0;width:' + W + 'px;height:' + H + 'px;transform-origin:0 0;transform:scale(' + (mw / W) + ');pointer-events:none;overflow:hidden;background:#fff;opacity:.9';
+        const c = slides[idx].cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id')); c.classList.add('cur');
+        t.appendChild(c); m.insertBefore(t, m.firstChild); m.dataset.thumb = key;
+      }
       mf.style.left = (fb.left - fb.c.left) + 'px'; mf.style.top = (fb.top - fb.c.top) + 'px'; mf.style.width = (fb.right - fb.left) + 'px'; mf.style.height = (fb.bottom - fb.top) + 'px';
       return;
     }
@@ -524,6 +542,7 @@
       if (typeof s.pt === 'number' && s.pt >= 0 && s.pt < PEN_TOOLS.length) penTool = s.pt;
       if (typeof s.laser === 'boolean') { laserOn = s.laser; document.body.classList.toggle('laser', laserOn); }              // レーザー（と書き込み）の入切は、両方の画面で同じ
       if (typeof s.lz === 'number' && role === 'presenter') setLaser(s.lz, true);
+      if (typeof s.va === 'number' && s.va > 0.2 && s.va < 8 && role === 'presenter') { audAspect = s.va; drawFrame(); }
       if (role !== 'presenter') {                                                  // 発表者ビューからの、レーザー・部分拡大
         if (typeof s.lz === 'number') setLaser(s.lz, true);
         if (typeof s.zk === 'number') zoomK = Math.min(5, Math.max(1, s.zk));
@@ -538,7 +557,7 @@
         }
       }
       if (typeof s.i === 'number') show(s.i, true); },
-    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, zc: [zc.u, zc.v], draw: laserOn, tool: PEN_TOOLS[penTool][0], color: penColor, ink: (marks[idx] || []).length, inkAll: Object.values(marks).reduce((n, a) => n + a.length, 0), lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
+    state: () => ({ i: idx, n: slides.length, black: black, ratio: ratioKey, W: W, scale: scale, laser: laserOn, zoom: zoomOn, zk: zoomK, zc: [zc.u, zc.v], va: audAspect, draw: laserOn, tool: PEN_TOOLS[penTool][0], color: penColor, ink: (marks[idx] || []).length, inkAll: Object.values(marks).reduce((n, a) => n + a.length, 0), lz: laserUnits, lpx: parseFloat(($('laser') || { style: {} }).style.width) || 0, overview: overviewOn, role: role, t0: startTime }),
     next: next, prev: prev, goto: i => show(i), overflow: overflowList, shrunk: shrunkList, setRatio: setRatio, fitAll: fitAll, print: printDeck,
     preparePrint: preparePrint, endPrint: endPrint,
   };
@@ -552,8 +571,9 @@
     slides.forEach((s, i) => { const n = document.createElement('div'); n.className = 'slide-num'; n.textContent = String(i + 1); s.appendChild(n); });
     setInterval(tick, 500);
     setInterval(() => { if (alone()) drawFrame(); }, 400);            // 1 画面のときの地図は、マウスが止まれば消える
+    let lastVa = 0;
     if (role === 'audience') setInterval(() => {                                    // 発表者ビューが開いているかを、Python に聞く（O キーで、あとから開くこともある）
-      try { const a = window.pywebview && window.pywebview.api; if (a && a.has_presenter) a.has_presenter().then(v => { const was = presenterOn; presenterOn = !!v; if (was !== presenterOn) drawFrame(); }); } catch (e) { /* 聞けなければ、そのまま */ }
+      try { const a = window.pywebview && window.pywebview.api; if (a && a.has_presenter) a.has_presenter().then(v => { const was = presenterOn; presenterOn = !!v; if (was !== presenterOn) { lastVa = 0; drawFrame(); } if (presenterOn) { const va = innerWidth / Math.max(1, innerHeight); if (Math.abs(va - lastVa) > 0.001) { lastVa = va; send({ va: va }); } } }); } catch (e) { /* 聞けなければ、そのまま */ }
     }, 700);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
     window.addEventListener('load', fitAll);
@@ -566,7 +586,7 @@
       if (role !== 'presenter') l.style.visibility = '';                                   // 手元から消された点も、この画面のマウスが動けば、また出る
       if (role === 'presenter' && laserOn) pointerToAudience(e);
       if (!zgrab) document.body.classList.toggle('zgrab', zoomOn && onFrameEdge(e.clientX, e.clientY));       // 枠の縁の上では、移動の形のカーソルにする
-      if (alone()) setTimeout(drawFrame, 0);
+      if (alone()) { mapActive = Date.now(); setTimeout(drawFrame, 0); }
       document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
     });
     $('stage').addEventListener('click', e => { if (suppressClick) { suppressClick = false; return; } if (e.button === 0 && !overviewOn) { if (!zoomOn) next(); } });
@@ -635,7 +655,7 @@
         }
         const du = Math.abs(u2 - u1), dv = Math.abs(v2 - v1);
         if (du < 0.01 || dv < 0.01) return;
-        setFrame((u1 + u2) / 2, (v1 + v2) / 2, Math.round(Math.min(5, Math.max(1.1, Math.min(1 / du, 1 / dv))) * 100) / 100);
+        setFrame((u1 + u2) / 2, (v1 + v2) / 2, fitK(du, dv));
         sendFrame(true);
         toast('選んだ範囲を拡大しました（' + zoomK.toFixed(1) + ' 倍。縁をドラッグして位置を動かせます）');
         return;
@@ -651,7 +671,7 @@
     document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a'); if (a) e.preventDefault(); }, true);     // 発表中は、リンクを開かない（ウィンドウが別のページに変わらないように）
     document.addEventListener('wheel', e => {
       if (overviewOn) return;
-      if (zoomOn) { const up = e.deltaY < 0; zoomK = Math.round(Math.min(5, Math.max(1, zoomK + (up ? (zoomK < 2 ? 0.1 : 0.25) : (zoomK <= 2 ? -0.1 : -0.25)))) * 100) / 100; zc = clampCenter(zc.u, zc.v); applyTransform(); toast(zoomK <= 1 ? '等倍' : '拡大 ' + zoomK.toFixed(2) + ' 倍'); sendFrame(true); e.preventDefault(); return; }
+      if (zoomOn) { const up = e.deltaY < 0; zoomK = Math.round(Math.min(5, Math.max(1, zoomK + (up ? (zoomK < 2 ? 0.1 : 0.25) : (zoomK <= 2 ? -0.1 : -0.25)))) * 100) / 100; zc = clampCenter(zc.u, zc.v); mapActive = Date.now(); applyTransform(); toast(zoomK <= 1 ? '等倍' : '拡大 ' + zoomK.toFixed(2) + ' 倍'); sendFrame(true); e.preventDefault(); return; }
       const now = Date.now(); if (now - lastWheel < 350) return; lastWheel = now;
       if (e.deltaY > 0) next(); else if (e.deltaY < 0) prev();
     }, { passive: false });

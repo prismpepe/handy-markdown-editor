@@ -465,6 +465,9 @@ class DeckHost:
         zk = state.get("zk")
         if isinstance(zk, (int, float)) and not isinstance(zk, bool):
             safe["zk"] = min(5.0, max(1.0, float(zk)))
+        va = state.get("va")                                           # 聴衆の画面の窓の縦横比（発表者ビューの枠の大きさに使う）
+        if isinstance(va, (int, float)) and not isinstance(va, bool) and 0.2 < va < 8:
+            safe["va"] = float(va)
         zc = state.get("zc")                                           # 拡大の枠の中心（スライド上の 0〜1）
         if isinstance(zc, list) and len(zc) == 2 and all(isinstance(q, (int, float)) and not isinstance(q, bool) and -0.5 <= q <= 1.5 for q in zc):
             safe["zc"] = [min(1.0, max(0.0, float(q))) for q in zc]
